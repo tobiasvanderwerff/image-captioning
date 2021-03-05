@@ -14,7 +14,7 @@ from operator import itemgetter
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
-def preprocess(dataset):
+def preprocess_tokens(dataset):
     captions = []
     known_word = {}
 
