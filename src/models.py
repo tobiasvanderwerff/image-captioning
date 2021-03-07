@@ -68,7 +68,7 @@ class LSTMDecoder(nn.Module):
         logits = self.fc(out)
         return logits
                      
-    def init_cell_state(self, batch_size, device):
+    def init_cell_state(self, batch_size):
         c = torch.zeros(self.num_layers * self.num_directions, batch_size, self.num_hidden)
         c = c.to(self.device)
         return c
