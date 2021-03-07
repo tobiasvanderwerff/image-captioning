@@ -8,18 +8,32 @@
 # e.g. should be going -> go and doors -> door. This would shrink the vocabulary and save memory + improve generalization
 
 import string
+import re
+import logging
+from pathlib import Path
 from collections import OrderedDict
 from operator import itemgetter
 
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
-def preprocess_tokens(dataset):
+logger = logging.getLogger(__name__)
+
+def preprocess_tokens(annotation_file):
+    """ Preprocessing of image captions.
+        annotation_file is a path to a file containing one image/annotation pair per line, 
+        where the image and annotation are separated by a \t symbol (tab). """    
+   
     captions = []
     known_word = {}
+    
+    img_annotations = Path(annotation_file).read_text().split('\n')
 
-    for i in range(len(dataset)):
-        sentence = word_tokenize(dataset[i][1])
+    for i, line in enumerate(img_annotations):
+        if len(line) == 0:
+            continue
+        _, sentence = line.split('\t')  # we are only interested in the caption, not the image
+        sentence = word_tokenize(sentence)
         for word in sentence:
             # Remove punctuation and capital letters
             word = word.translate(str.maketrans('','',string.punctuation)).lower()
@@ -30,8 +44,8 @@ def preprocess_tokens(dataset):
                 known_word[word] = 1
 
         captions.append(sentence)
-        if i % 500 == 0:
-            print(i, "/", len(dataset))
+        if i % 10000 == 0:
+            logger.info(f"Creating word dictionary: {i}/{len(img_annotations)}")
             
 #     print(len(captions))
 #     print('\n\n')
@@ -53,7 +67,7 @@ def preprocess_tokens(dataset):
 
     # Sorting the dictionary by frequency (descending)
     known_words_final = sorted(known_word2.items(), key=lambda x: x[1], reverse=True)
-    known_words_final = [('<NOTSET>', 0), ('<UNKNOWN>', 0)] + known_words_final
+    known_words_final = [('<NOTSET>', 0), ('<UNKNOWN>', 0), ('<START>', 0), ('<END>', 0)] + known_words_final
 
     known_words_final = dict(known_words_final)
     #known_words_final = OrderedDict(sorted(known_word2.items(), key=itemgetter(1), reverse = True))
@@ -66,28 +80,33 @@ def preprocess_tokens(dataset):
     train_sequences = []
     max_length = 0
 
-    for i in range(len(dataset)):
-        sentence = word_tokenize(dataset[i][1])
+    for i, line in enumerate(img_annotations):
+        if len(line) == 0:
+            continue
+        img_id, sentence = line.split('\t')
+        img_id = re.match(r'.*\.jpg', img_id).group(0)
+        sentence = word_tokenize(sentence)
+        sentence_enc = []  # create a new list for the encoded sentence
         #print(sentence)
-        j = 0
-        for word in sentence:
+        for j, word in enumerate(sentence):
             word = word.translate(str.maketrans('','',string.punctuation)).lower()
+            if j == 0:  # start the beginning of the caption with a <START> token
+                sentence_enc.append(list(known_words_final.keys()).index('<START>'))
             # If the word is in our dictionary, it is replaced by the index in the sorted dictionary
-            if word in known_words_final:
-                sentence[j] = list(known_words_final.keys()).index(word)
+            elif word in known_words_final:
+                sentence_enc.append(list(known_words_final.keys()).index(word))
             else:
                 # If not, it is unknown and we give index 1
-                sentence[j] = 1
-            j = j + 1
+                sentence_enc.append(1)
+        sentence_enc.append(list(known_words_final.keys()).index('<END>'))  # end with a <END> token
 
-        #print(sentence, '\n\n')
-        train_sequences.append(sentence)
-        if(len(sentence) > max_length):
-            max_length = len(sentence)
-        if i % 500 == 0:
-            print(i, "/", len(dataset))
+        #print(res, '\n\n')
+        train_sequences.append((img_id, sentence_enc))
+        if(len(sentence_enc) > max_length):
+            max_length = len(sentence_enc)
+        if i % 10000 == 0:
+            logger.info(f"Replacing tokens with numerical values: {i}/{len(img_annotations)}")
             
-
 #     print('\nExample:')
 #     print(ds_train[0][1])
 #     print(train_sequences[0])
@@ -97,8 +116,8 @@ def preprocess_tokens(dataset):
 
     # Pad each vector to the maximum length of the captions (max_length) with the index of '<NOTSET>' (0)
     for k in range(len(train_sequences)):
-        for l in range(max_length - len(train_sequences[k])):
-            train_sequences[k].append(0)
+        for l in range(max_length - len(train_sequences[k][1])):
+            train_sequences[k][1].append(0)
             
     # Print some examples
 #     for i in range(10):

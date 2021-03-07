@@ -56,6 +56,6 @@ class Trainer:
                 optimizer.step()  # update weights
 
                 running_loss += loss.item()
-            logger.info(f"train_loss: {running_loss / len(trainloader)}")
+            logger.info(f"Epoch {ep} - train_loss: {running_loss / len(trainloader):.4f}")
             
             # TODO: evaluate model on evaluation set. 
