@@ -5,7 +5,7 @@ This repository contains a PyTorch implementation of a deep learning based image
 Download the necessary packages, e.g. using pip:  
 
 ```
-pip install torch torchvision requests 
+pip install -r requirements.txt
 ```
 
 ## References
