@@ -2,8 +2,6 @@
 # Note: this takes some time (a few mins)
 
 # NOTES
-# Still have to remove the empty string 
-# (for instance in the example above the '.' becomes the empty string which has position 3 in the sorted dictionary)
 # Does not yet do stemming
 # e.g. should be going -> go and doors -> door. This would shrink the vocabulary and save memory + improve generalization
 
@@ -37,25 +35,22 @@ def preprocess_tokens(annotation_file):
         for word in sentence:
             # Remove punctuation and capital letters
             word = word.translate(str.maketrans('','',string.punctuation)).lower()
-            # Add the word to the dictionary
-            if word in known_word:
-                known_word[word] = known_word[word] + 1
-            else:
-                known_word[word] = 1
-
+            # To prevent adding the empty string
+            if word != "":
+                # Add the word to the dictionary
+                if word in known_word:
+                    known_word[word] = known_word[word] + 1
+                else:
+                    known_word[word] = 1
+ 
         captions.append(sentence)
         if i % 10000 == 0:
             logger.info(f"Creating word dictionary: {i}/{len(img_annotations)}")
-            
-#     print(len(captions))
-#     print('\n\n')
-#     print(known_word)
-#     print(len(known_word))
+
 
     # Remove the single occurences from the dictionary to save memory
     # With single occurences: vocab_size = 3858
     # Without single occurences: vocab_size = 2006
-
     known_word2 = {}
 
     for word in known_word:
@@ -70,7 +65,6 @@ def preprocess_tokens(annotation_file):
     known_words_final = [('<NOTSET>', 0), ('<UNKNOWN>', 0), ('<START>', 0), ('<END>', 0)] + known_words_final
 
     known_words_final = dict(known_words_final)
-    #known_words_final = OrderedDict(sorted(known_word2.items(), key=itemgetter(1), reverse = True))
 
 #     print(known_words_final)
 #     print(len(known_words_final))
