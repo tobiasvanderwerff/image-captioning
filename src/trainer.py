@@ -37,25 +37,39 @@ class Trainer:
         model, optimizer, config = self.model, self.optimizer, self.config
         trainloader = DataLoader(self.train_ds, config.batch_size, shuffle=True, 
                                  num_workers=config.num_workers, pin_memory=True)
-        evalloader = DataLoader(self.eval_ds, 2*config.batch_size, shuffle=False,  # double the batch size since evaluation takes less memory
-                                num_workers=config.num_workers, pin_memory=True)
+        if self.eval_ds is not None:
+            evalloader = DataLoader(self.eval_ds, 2*config.batch_size, shuffle=False,  # double the batch size since evaluation takes less memory
+                                    num_workers=config.num_workers, pin_memory=True)
     
-        for ep in range(config.epochs):
-            running_loss = 0
-            for data in trainloader:
-                model.train()  # put model in training mode (rather than evaluation mode)
-                
+        def run_epoch(split):
+            is_train = True if split == 'train' else False
+            dataloader = trainloader if split == 'train' else evalloader
+            running_loss, total_correct = 0, 0
+            for data in dataloader:
+                model.train(is_train)  # put model in training or evaluation mode
+
                 data = [el.to(self.device) for el in data]  # put data on the appropriate device (cpu or gpu)
 
                 optimizer.zero_grad()  # set the gradients to zero
 
-                logits, loss = model(*data)
-
-                loss.backward()  # calculate gradients
-                torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)  # clip gradients to avoid exploding gradients
-                optimizer.step()  # update weights
-
+                logits, loss, num_correct = model(*data)  # forward pass
+                
                 running_loss += loss.item()
-            logger.info(f"Epoch {ep} - train_loss: {running_loss / len(trainloader):.4f}")
-            
-            # TODO: evaluate model on evaluation set. 
+                total_correct += num_correct
+                
+                if is_train:
+                    loss.backward()  # calculate gradients
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)  # clip gradients to avoid exploding gradients
+                    optimizer.step()  # update weights
+            epoch_loss = running_loss / len(dataloader)
+            info_str = f"Epoch {ep} - {split}_loss: {epoch_loss:.4f}"
+            if split == 'eval':
+                accuracy = total_correct / (trainloader.batch_size * len(dataloader))  # TODO: is this inaccurate for incomplete batches?
+                info_str += f" - accuracy: {accuracy:.4f}"
+            logger.info(info_str)
+
+        for ep in range(config.epochs):
+            run_epoch('train')
+            if self.eval_ds is not None:
+                with torch.no_grad():
+                    run_epoch('eval')

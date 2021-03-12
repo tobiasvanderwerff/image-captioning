@@ -13,6 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
+from src.utils import count_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -21,18 +22,18 @@ class EncoderDecoder(nn.Module):
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
+        logger.info(f"Number of trainable parameters: {count_parameters(self)}")
         
     def forward(self, img, caption, seq_lengths, targets=None):
         img_features = self.encoder(img)  # shape: (batch, img_features)
-        img_features = img_features.repeat(2, 1, 1)  # shape: (num_layers, batch, img_features)
-#         import pdb; pdb.set_trace()
+        img_features = img_features.repeat(self.decoder.num_layers, 1, 1)  # shape: (num_layers, batch, img_features)
         logits = self.decoder(caption, img_features, seq_lengths) 
         
-        loss = None
-        if targets is not None:  # calculate the loss
+        loss, num_correct = None, None
+        if targets is not None:  # calculate the loss and the number of correct predictions
             loss = F.cross_entropy(logits.permute(0, 2, 1), targets)
-            
-        return logits, loss
+            num_correct = (torch.argmax(logits, dim=-1) == targets).sum().item()
+        return logits, loss, num_correct
 
 class LSTMDecoder(nn.Module):
     def __init__(self, num_hidden, embedding_dim, vocab_size, device, num_layers=2, bidirectional=False):

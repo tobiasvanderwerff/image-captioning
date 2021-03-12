@@ -1,15 +1,15 @@
-
+#!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[7]:
 
 
-get_ipython().magic('matplotlib inline')
-get_ipython().magic('reload_ext autoreload')
-get_ipython().magic('autoreload 2')
+get_ipython().run_line_magic('matplotlib', 'inline')
+get_ipython().run_line_magic('reload_ext', 'autoreload')
+get_ipython().run_line_magic('autoreload', '2')
 
 
-# In[2]:
+# In[8]:
 
 
 import random
@@ -24,7 +24,7 @@ import torch.optim as optim
 from IPython.core.debugger import set_trace
 
 
-# In[3]:
+# In[9]:
 
 
 # logging set-up
@@ -34,7 +34,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 
 
-# In[4]:
+# In[10]:
 
 
 # Make deterministic
@@ -42,39 +42,38 @@ random.seed(47)
 torch.manual_seed(47);
 
 
-# In[5]:
+# In[11]:
 
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 device
 
 
-# In[6]:
+# In[12]:
 
 
 # path = Path('/data/s4314719/image-captioning/')  # set this to the path where the dataset should be stored
 # path = Path('/image_data/')  # set this to the path where the dataset should be stored
 # path = Path('C:/Users/leann/Documents/Master AI IS/Deep Learning/image_data/')
-path = Path('./images')
 
 path.mkdir(exist_ok=True)
 
 
-# In[7]:
+# In[13]:
 
 
 img_dir = path/'Flicker8k_Dataset'
 ann_file = path/'Flickr8k.token.txt'
 
 
-# In[8]:
+# In[14]:
 
 
 URL = 'https://github.com/jbrownlee/Datasets/releases/download/Flickr8k/'
 FILENAMES = ['Flickr8k_text.zip', 'Flickr8k_Dataset.zip']
 
 
-# In[9]:
+# In[15]:
 
 
 # Download dataset
@@ -91,19 +90,19 @@ for fn in FILENAMES:
             zipf.extractall(path)
 
 
-# In[9]:
+# In[16]:
 
 
 list(path.glob('*')) # list all files
 
 
-# In[10]:
+# In[17]:
 
 
 print((path/'Flickr8k.token.txt').read_text()[:696])
 
 
-# In[11]:
+# In[46]:
 
 
 from torch.utils.data import Dataset, DataLoader
@@ -116,15 +115,16 @@ class FlickrDataset(Dataset):
     start_token = '<START>'
     end_token = '<END>'
         
-    def __init__(self, img_dir, ann_file, img_ids, trnsf=None):
+    def __init__(self, img_dir, img_captions_enc, known_words, ann_file, img_ids, trnsf=None):
         self.img_dir = Path(img_dir)
+        self.known_words = known_words
         self.ann_file = Path(ann_file)
         self.trnsf = trnsf
         self.annotations = {}
         self.targets = {}
         
-        # Preprocess the image captions
-        img_captions_enc, self.known_words, _ = preprocess_tokens(ann_file)
+        #img_captions_enc, self.known_words, _ = preprocess_tokens(ann_file)
+        
         end_idx = list(self.known_words.keys()).index(self.end_token)
         # the targets are the captions shifted one place to the right.
         target_lst = [[c[i] for i in range(1, len(c)) if c[i] != self.ns_token] 
@@ -163,7 +163,7 @@ class FlickrDataset(Dataset):
 
 # ### Preprocessing the images
 
-# In[12]:
+# In[19]:
 
 
 # Calculate mean and standard deviation over all channels for normalization
@@ -173,7 +173,7 @@ mean = np.array([0.4629, 0.4468, 0.4050])
 std = np.array([0.2661, 0.2587, 0.2727])
 
 
-# In[14]:
+# In[20]:
 
 
 from torchvision import transforms
@@ -202,19 +202,31 @@ trnsf = {
 }
 
 
+# ### Preprocessing the captions
+
+# In[53]:
+
+
+# Calls the preprocessing of the captions which may take a while (progress is printed)
+img_captions_enc, known_words, _ = preprocess_tokens(ann_file)
+vocab_size = len(known_words)
+vocab_size
+
+
 # ### Split data up into train and evaluation set
 
-# In[22]:
+# In[54]:
 
 
 # We use the predefined train/eval splits of Flickr8k
-# This also calls the preprocessing of the captions which may take a while (progress is printed)
-ds_train = FlickrDataset(img_dir, ann_file,  path/'Flickr_8k.trainImages.txt', trnsf=trnsf['train'])
-ds_eval = FlickrDataset(img_dir, ann_file, path/'Flickr_8k.devImages.txt', trnsf=trnsf['eval'])
+ds_train = FlickrDataset(img_dir, img_captions_enc, known_words, ann_file,
+                         path/'Flickr_8k.trainImages.txt', trnsf=trnsf['train'])
+ds_eval = FlickrDataset(img_dir, img_captions_enc, known_words, ann_file,
+                        path/'Flickr_8k.devImages.txt', trnsf=trnsf['eval'])
 len(ds_train), len(ds_eval)
 
 
-# In[16]:
+# In[48]:
 
 
 # show an example from the dataset
@@ -227,7 +239,7 @@ print(ds_train.decode_caption(caption))
 
 # ### Visualizing some images
 
-# In[17]:
+# In[49]:
 
 
 def imshow(im):
@@ -238,7 +250,7 @@ def imshow(im):
     plt.imshow(imnp)
 
 
-# In[18]:
+# In[24]:
 
 
 # Plot some examples from the training set
@@ -258,18 +270,18 @@ for i in range(nrows * ncols):
 
 # ### Model initialization and training
 
-# In[19]:
+# In[55]:
 
 
-# dummy variables
-vocab_size = 10000
+# hyperparameters
 num_hidden = 512
 embedding_dim = 512
 batch_size = 128
-lr = 0.01
+epochs = 100
+num_workers = 0
 
 
-# In[20]:
+# In[95]:
 
 
 from src.models import EncoderDecoder, LSTMDecoder, get_encoder
@@ -282,36 +294,56 @@ model = EncoderDecoder(encoder, decoder)
 model.to(device);
 
 
-# In[21]:
+# In[96]:
 
 
 model
 
 
-# In[22]:
+# In[97]:
 
 
 optimizer = optim.Adam(model.parameters())
 
 
-# In[23]:
+# In[90]:
 
 
 # overfit on a mini dataset
-ds_mini = torch.utils.data.Subset(ds_train, [0, 1])
+ds_train_mini = torch.utils.data.Subset(ds_train, [0, 1])
+ds_eval_mini = torch.utils.data.Subset(ds_eval, [1, 2])
 
 
-# In[24]:
+# In[91]:
 
 
 from src.trainer import Trainer, TrainerConfig
 
-config = TrainerConfig(batch_size=128, epochs=100, num_workers=0)
-trainer = Trainer(config, model, optimizer, ds_mini, ds_eval)
+config = TrainerConfig(batch_size=batch_size, epochs=epochs, num_workers=num_workers)
+trainer = Trainer(config, model, optimizer, ds_train_mini)
+# trainer = Trainer(config, model, optimizer, ds_train_mini, ds_eval_mini)
 
 
-# In[87]:
+# In[92]:
 
 
 trainer.train()  # overfit on a mini dataset for a quick sanity check
+
+
+# In[80]:
+
+
+trainer.train()  # overfit on a mini dataset for a quick sanity check
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 
