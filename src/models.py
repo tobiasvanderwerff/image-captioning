@@ -33,7 +33,7 @@ class EncoderDecoder(nn.Module):
         if targets is not None:  # calculate the loss and the number of correct predictions
             loss = F.cross_entropy(logits.permute(0, 2, 1), targets)
             num_correct = (torch.argmax(logits, dim=-1) == targets).sum().item()
-        return logits, loss, num_correct
+        return logits, loss, num_correct, targets.size(0)
 
 class LSTMDecoder(nn.Module):
     def __init__(self, num_hidden, embedding_dim, vocab_size, device, num_layers=2, bidirectional=False):
