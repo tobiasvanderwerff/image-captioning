@@ -6,6 +6,7 @@ import logging
 import itertools
 
 import numpy as np
+import numpy.linalg as LA
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -19,6 +20,7 @@ class TrainerConfig:
     epochs = 10
     grad_norm_clip = 5.0
     num_workers = 0
+    track_grad_norm = False
 
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
@@ -32,6 +34,8 @@ class Trainer:
         self.train_ds = train_ds
         self.eval_ds = eval_ds
         
+        if config.track_grad_norm:
+            self.grad_norms = []
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     
     def train(self):
@@ -61,6 +65,8 @@ class Trainer:
                 
                 if is_train:
                     loss.backward()  # calculate gradients
+                    if config.track_grad_norm:
+                        self._track_grad_norm()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)  # clip gradients to avoid exploding gradients
                     optimizer.step()  # update weights
             epoch_loss = np.mean(losses)
@@ -75,3 +81,9 @@ class Trainer:
             if self.eval_ds is not None:
                 with torch.no_grad():
                     run_epoch('eval')
+                    
+    @torch.no_grad()
+    def _track_grad_norm(self):
+        """ Calculate and store the 2-norm of the gradients in the model. """
+        grad_norm = np.sqrt(np.sum(LA.norm(p.grad.cpu().numpy()) ** 2 for p in self.model.parameters() if p.requires_grad))
+        self.grad_norms.append(grad_norm)

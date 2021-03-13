@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[7]:
+# In[1]:
 
 
 get_ipython().run_line_magic('matplotlib', 'inline')
@@ -9,7 +9,7 @@ get_ipython().run_line_magic('reload_ext', 'autoreload')
 get_ipython().run_line_magic('autoreload', '2')
 
 
-# In[8]:
+# In[2]:
 
 
 import random
@@ -24,7 +24,7 @@ import torch.optim as optim
 from IPython.core.debugger import set_trace
 
 
-# In[9]:
+# In[3]:
 
 
 # logging set-up
@@ -34,7 +34,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 
 
-# In[10]:
+# In[54]:
 
 
 # Make deterministic
@@ -42,14 +42,14 @@ random.seed(47)
 torch.manual_seed(47);
 
 
-# In[11]:
+# In[5]:
 
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 device
 
 
-# In[12]:
+# In[6]:
 
 
 # path = Path('/data/s4314719/image-captioning/')  # set this to the path where the dataset should be stored
@@ -59,21 +59,21 @@ device
 path.mkdir(exist_ok=True)
 
 
-# In[13]:
+# In[7]:
 
 
 img_dir = path/'Flicker8k_Dataset'
 ann_file = path/'Flickr8k.token.txt'
 
 
-# In[14]:
+# In[8]:
 
 
 URL = 'https://github.com/jbrownlee/Datasets/releases/download/Flickr8k/'
 FILENAMES = ['Flickr8k_text.zip', 'Flickr8k_Dataset.zip']
 
 
-# In[15]:
+# In[9]:
 
 
 # Download dataset
@@ -90,19 +90,19 @@ for fn in FILENAMES:
             zipf.extractall(path)
 
 
-# In[16]:
+# In[10]:
 
 
 list(path.glob('*')) # list all files
 
 
-# In[17]:
+# In[11]:
 
 
 print((path/'Flickr8k.token.txt').read_text()[:696])
 
 
-# In[46]:
+# In[47]:
 
 
 from torch.utils.data import Dataset, DataLoader
@@ -146,7 +146,7 @@ class FlickrDataset(Dataset):
     def __getitem__(self, idx):
         img_id = self.img_ids[idx]
         annotation = self.annotations[img_id]
-        annotation_len = len(annotation)
+        annotation_len = len(annotation)  # TODO: caption lengths are for padded captions, so incorrect
         im = Image.open(self.img_dir/img_id)
         if self.trnsf is not None:
             im = self.trnsf(im)
@@ -155,15 +155,28 @@ class FlickrDataset(Dataset):
     
     def decode_caption(self, caption):
         res = ''
-        for word_idx in caption:
-            res += list(self.known_words.keys())[word_idx]
+        for i, word_idx in enumerate(caption):
+            word = list(self.known_words.keys())[word_idx]
+            res += word
+            if word == self.end_token:
+                break
             res += ' '
+        return res
+    
+    def encode_caption(self, caption):
+        res = []
+        for i, word in enumerate(caption):
+            if word in known_words:
+                # this is not very efficient; can be improved by creating a dictionary of (word, encoding) pairs
+                res.append(list(self.known_words.keys()).index(word))
+            else:
+                res.append(list(self.known_words.keys()).index(self.unk_token))
         return res
 
 
 # ### Preprocessing the images
 
-# In[19]:
+# In[13]:
 
 
 # Calculate mean and standard deviation over all channels for normalization
@@ -173,7 +186,7 @@ mean = np.array([0.4629, 0.4468, 0.4050])
 std = np.array([0.2661, 0.2587, 0.2727])
 
 
-# In[20]:
+# In[14]:
 
 
 from torchvision import transforms
@@ -204,7 +217,7 @@ trnsf = {
 
 # ### Preprocessing the captions
 
-# In[53]:
+# In[15]:
 
 
 # Calls the preprocessing of the captions which may take a while (progress is printed)
@@ -215,7 +228,7 @@ vocab_size
 
 # ### Split data up into train and evaluation set
 
-# In[54]:
+# In[48]:
 
 
 # We use the predefined train/eval splits of Flickr8k
@@ -226,7 +239,7 @@ ds_eval = FlickrDataset(img_dir, img_captions_enc, known_words, ann_file,
 len(ds_train), len(ds_eval)
 
 
-# In[48]:
+# In[49]:
 
 
 # show an example from the dataset
@@ -239,7 +252,7 @@ print(ds_train.decode_caption(caption))
 
 # ### Visualizing some images
 
-# In[49]:
+# In[51]:
 
 
 def imshow(im):
@@ -250,7 +263,7 @@ def imshow(im):
     plt.imshow(imnp)
 
 
-# In[24]:
+# In[55]:
 
 
 # Plot some examples from the training set
@@ -263,25 +276,25 @@ for i in range(nrows * ncols):
     idx = random.randint(0, len(ds_train)-1)
     im, caption, _, _ = ds_train[idx]
     plt.subplot(nrows, ncols, i+1)
-    plt.title(ds_train.decode_caption(caption)[:50])  # TODO: modify this to show the entire caption correctly
+    plt.title(ds_train.decode_caption(caption))
     imshow(im)
     plt.axis('off')
 
 
 # ### Model initialization and training
 
-# In[55]:
+# In[60]:
 
 
 # hyperparameters
 num_hidden = 512
 embedding_dim = 512
-batch_size = 128
-epochs = 100
+batch_size = 64
+epochs = 10
 num_workers = 0
 
 
-# In[95]:
+# In[61]:
 
 
 from src.models import EncoderDecoder, LSTMDecoder, get_encoder
@@ -294,52 +307,91 @@ model = EncoderDecoder(encoder, decoder)
 model.to(device);
 
 
-# In[96]:
+# In[62]:
 
 
-model
+# model
 
 
-# In[97]:
+# In[63]:
 
 
 optimizer = optim.Adam(model.parameters())
 
 
-# In[90]:
+# In[64]:
 
 
 # overfit on a mini dataset
-ds_train_mini = torch.utils.data.Subset(ds_train, [0, 1])
-ds_eval_mini = torch.utils.data.Subset(ds_eval, [1, 2])
+# ds_train_mini = torch.utils.data.Subset(ds_train, [0, 1, 2, 3, 4, 5])
 
 
-# In[91]:
+# In[65]:
 
 
 from src.trainer import Trainer, TrainerConfig
 
-config = TrainerConfig(batch_size=batch_size, epochs=epochs, num_workers=num_workers)
-trainer = Trainer(config, model, optimizer, ds_train_mini)
-# trainer = Trainer(config, model, optimizer, ds_train_mini, ds_eval_mini)
+config = TrainerConfig(batch_size=batch_size, epochs=epochs, 
+                       num_workers=num_workers, track_grad_norm=True)
+# trainer = Trainer(config, model, optimizer, ds_train_mini)
+trainer = Trainer(config, model, optimizer, ds_train, ds_eval)
 
 
-# In[92]:
-
-
-trainer.train()  # overfit on a mini dataset for a quick sanity check
-
-
-# In[80]:
+# In[66]:
 
 
 trainer.train()  # overfit on a mini dataset for a quick sanity check
 
 
-# In[ ]:
+# In[73]:
 
 
+# Plot the gradients over time
+# plt.plot(trainer.grad_norms)
+# plt.show()
 
+
+# ### Sample some predictions
+
+# In[29]:
+
+
+import torch.nn.functional as F
+from torch.distributions.categorical import Categorical
+
+# TODO: make it easier to get indices for individual tokens
+@torch.no_grad()
+def sample(img, top_k=1):
+    """ Perform inference on the model by feeding it an image and generating a caption. """
+    start_token, end_token = FlickrDataset.start_token, FlickrDataset.end_token
+    next_token = start_token
+    res = start_token
+    tokens = ds_train.encode_caption([start_token])
+    
+    model.eval()
+    img = img.to(device)
+    img_features = model.encoder(img)  # shape: (batch, img_features)
+    h = img_features.repeat(model.decoder.num_layers, 1, 1)  # shape: (num_layers, batch, img_features)
+    while next_token != end_token:
+        x = torch.tensor([tokens[-1]]).unsqueeze(0).to(device)
+
+        logits, h = model.decoder(x, h, np.array([2]))
+
+        klogits, kidxs = torch.topk(logits, top_k)
+        probs = F.softmax(klogits, dim=-1).data.cpu()
+        
+        token_idx = kidxs[Categorical(probs).sample()]  # sample a token
+        tokens.append(token_idx)
+        
+        next_token = ds_train.decode_caption([token_idx])
+    caption = ds_train.decode_caption(tokens)
+    return caption
+
+
+# In[30]:
+
+
+sample(ds_train_mini[1][0].unsqueeze(0))
 
 
 # In[ ]:

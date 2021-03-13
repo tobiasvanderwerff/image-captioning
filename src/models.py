@@ -27,13 +27,13 @@ class EncoderDecoder(nn.Module):
     def forward(self, img, caption, seq_lengths, targets=None):
         img_features = self.encoder(img)  # shape: (batch, img_features)
         img_features = img_features.repeat(self.decoder.num_layers, 1, 1)  # shape: (num_layers, batch, img_features)
-        logits = self.decoder(caption, img_features, seq_lengths) 
         
         loss, num_correct = None, None
-        if targets is not None:  # calculate the loss and the number of correct predictions
+        if targets is not None:
+            logits, _ = self.decoder(caption, img_features, seq_lengths) 
             loss = F.cross_entropy(logits.permute(0, 2, 1), targets)
             num_correct = (torch.argmax(logits, dim=-1) == targets).sum().item()
-        return logits, loss, num_correct, targets.size(0)
+        return logits, loss, num_correct, logits.size(0) * logits.size(1)
 
 class LSTMDecoder(nn.Module):
     def __init__(self, num_hidden, embedding_dim, vocab_size, device, num_layers=2, bidirectional=False):
@@ -46,7 +46,7 @@ class LSTMDecoder(nn.Module):
         self.device = device
         
         self.emb = nn.Embedding(vocab_size, embedding_dim)
-        self.lstm = nn.LSTM(embedding_dim, num_hidden, num_layers=2, batch_first=True, dropout=0, bidirectional=bidirectional)
+        self.lstm = nn.LSTM(embedding_dim, num_hidden, num_layers=2, batch_first=True, bidirectional=bidirectional)
         self.fc = nn.Linear(num_hidden, vocab_size)
     
     def forward(self, x, h0, seq_lengths):
@@ -61,13 +61,13 @@ class LSTMDecoder(nn.Module):
         # We use seq_lengths - 1 because we do not want to count the last <END> token in each caption.
         emb = torch.nn.utils.rnn.pack_padded_sequence(emb, seq_lengths - 1, batch_first=True)
         
-        out, _ = self.lstm(emb, (h0, c0))
+        out, (h, _) = self.lstm(emb, (h0, c0))
 
         # Undo the packing operation
         out, _ = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True)  # (batch, seq_len, num_directions * num_hidden)
         
         logits = self.fc(out)
-        return logits
+        return logits, h
                      
     def init_cell_state(self, batch_size):
         c = torch.zeros(self.num_layers * self.num_directions, batch_size, self.num_hidden)
