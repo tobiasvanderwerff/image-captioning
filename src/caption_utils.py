@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def preprocess_tokens(annotation_file):
     """ Preprocessing of image captions.
-        annotation_file is a path to a file containing one image/annotation pair per line, 
+        annotation_file should be a path to a file containing one image/annotation pair per line, 
         where the image and annotation are separated by a \t symbol (tab). """    
    
     captions = []
@@ -107,14 +107,5 @@ def preprocess_tokens(annotation_file):
 #     print('\n')
 #     print(len(train_sequences))
 #     print(max_length)
-
-    # Pad each vector to the maximum length of the captions (max_length) with the index of '<NOTSET>' (0)
-    for k in range(len(train_sequences)):
-        for l in range(max_length - len(train_sequences[k][1])):
-            train_sequences[k][1].append(0)
-            
-    # Print some examples
-#     for i in range(10):
-#         print(train_sequences[i])
 
     return train_sequences, known_words_final, max_length

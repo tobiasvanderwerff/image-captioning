@@ -27,12 +27,13 @@ class TrainerConfig:
             setattr(self, k, v)
     
 class Trainer:
-    def __init__(self, config, model, optimizer, train_ds, eval_ds=None):
+    def __init__(self, config, model, optimizer, train_ds, eval_ds=None, collate_fn=None):
         self.config = config
         self.model = model
         self.optimizer = optimizer
         self.train_ds = train_ds
         self.eval_ds = eval_ds
+        self.collate_fn = collate_fn
         
         if config.track_grad_norm:
             self.grad_norms = []
@@ -41,10 +42,12 @@ class Trainer:
     def train(self):
         model, optimizer, config = self.model, self.optimizer, self.config
         trainloader = DataLoader(self.train_ds, config.batch_size, shuffle=True, 
-                                 num_workers=config.num_workers, pin_memory=True)
+                                 num_workers=config.num_workers, pin_memory=True,
+                                 collate_fn=self.collate_fn)
         if self.eval_ds is not None:
             evalloader = DataLoader(self.eval_ds, 2*config.batch_size, shuffle=False,  # double the batch size since evaluation takes less memory
-                                    num_workers=config.num_workers, pin_memory=True)
+                                    num_workers=config.num_workers, pin_memory=True,
+                                    collate_fn=self.collate_fn)
     
         def run_epoch(split):
             is_train = True if split == 'train' else False
