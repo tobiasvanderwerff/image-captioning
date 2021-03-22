@@ -133,7 +133,7 @@ batch, seq_len, directions_times_hidden = out.shape
 _, _, n_annotations = intermediate_layer.shape
         # ---------------- Attention -----------------------
 
-        # torch.Size([2, 512, 16]) -> torch.Size([2, 16, 512])
+        # torch.Size([batch, num_hidden, n_annotations]) -> torch.Size([batch, n_annotations, num_hidden])
         intermediate_layer = torch.transpose(intermediate_layer, 1, -1)
         
         attn_in = torch.zeros(out.size(0), out.size(1), out.size(2) * 2).to(self.device)
