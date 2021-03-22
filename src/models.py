@@ -53,7 +53,7 @@ class ResNet(nn.Module):
 
     def forward(self, input):
         out = self.pretrained(input)
-        return out, self.intermediate
+        return out
 
 
 class EncoderDecoder(nn.Module):
