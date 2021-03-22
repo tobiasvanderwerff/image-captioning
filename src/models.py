@@ -128,7 +128,9 @@ class LSTMDecoder(nn.Module):
 
         # Undo the packing operation
         out, _ = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True)  # (batch, seq_len, num_directions * num_hidden)
-        
+
+batch, seq_len, directions_times_hidden = out.shape
+_, _, n_annotations = intermediate_layer.shape
         # ---------------- Attention -----------------------
 
         # torch.Size([2, 512, 16]) -> torch.Size([2, 16, 512])
