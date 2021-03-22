@@ -151,8 +151,8 @@ _, _, n_annotations = intermediate_layer.shape
 
             attn_in[i, :seq_len] = torch.cat((stack_intermediate_layer, out[i, :seq_len]), dim = 1)
 
-        attn_out = self.attn(attn_in)
-        attn_weights = F.softmax(attn_out, dim=1)
+        attn_out = self.attn(attn_in).squeeze()
+        attn_weights = F.softmax(attn_out, dim=-1)
         
         cs = torch.sum(attn_weights.unsqueeze(1) * out, dim=1, keepdim=False)
 
