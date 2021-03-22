@@ -65,7 +65,8 @@ class EncoderDecoder(nn.Module):
         self.decoder = decoder
         
     def forward(self, img, caption, seq_lengths, targets=None):
-        img_features, intermediate_layer1 = self.encoder(img)  
+        img_features = self.encoder(img)
+        intermediate_layer1 = self.encoder.intermediate
         #intermediate layer shape: [2, 512, 4, 4]
         #im_features shape (batch, img_features)
         iml = intermediate_layer1.get('BatchNorm')
