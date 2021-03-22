@@ -123,10 +123,6 @@ class LSTMDecoder(nn.Module):
         # See https://towardsdatascience.com/taming-lstms-variable-sized-mini-batches-and-why-pytorch-is-good-for-your-health-61d35642972e
         # We use seq_lengths - 1 because we do not want to count the last <END> token in each caption.
         emb = torch.nn.utils.rnn.pack_padded_sequence(emb, seq_lengths - 1, batch_first=True)
-
-        # [2, 38, 512]
-
-        # input of shape (seq_len, batch, input_size):
         
         out, _ = self.lstm(emb, (h0, c0))
 
