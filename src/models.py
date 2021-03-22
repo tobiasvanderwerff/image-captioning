@@ -104,11 +104,13 @@ class LSTMDecoder(nn.Module):
         self.fc = nn.Linear(self.num_hidden * 2, vocab_size)
     
     def forward(self, caption, h0, c0, seq_lengths, intermediate_layer):
-        # -------------- Inputs --------------------
-            # caption = caption; shape = (batch, seq_len)
-            # mlp = image feature vector averaged and passed through MLP
-            # seq_lengths = ''
-            # intermediate_layer = output of 'encoder.layer4[2].bn2' 
+"""  
+          -------------- Inputs --------------------  
+             caption = caption; shape = (batch, seq_len)   
+             mlp = image feature vector averaged and passed through MLP   
+             seq_lengths = ''   
+             intermediate_layer = output of 'encoder.layer4[2].bn2'    
+"""
         
         # Initialising the hidden state and cell state of the LSTM with 
         # the two different MLPs
