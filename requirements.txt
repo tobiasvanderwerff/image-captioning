@@ -7,3 +7,4 @@ Pillow
 jupyter
 notebook
 nltk
+pyyaml
