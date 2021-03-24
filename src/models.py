@@ -31,6 +31,7 @@ class EncoderDecoder(nn.Module):
         loss, num_correct = None, None
         if targets is not None:
             logits, _ = self.decoder(caption, img_features, seq_lengths) 
+            import pdb; pdb.set_trace()
             loss = F.cross_entropy(logits.permute(0, 2, 1), targets)
             num_correct = (torch.argmax(logits, dim=-1) == targets).sum().item()
         return logits, loss, num_correct, logits.size(0) * logits.size(1)

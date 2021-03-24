@@ -20,6 +20,8 @@ class TrainerConfig:
     epochs = 10
     grad_norm_clip = 5.0
     num_workers = 0
+    track_loss = False
+    track_accuracy = False  # only tracks accuracy on evaluation set
     track_grad_norm = False
 
     def __init__(self, **kwargs):
@@ -37,6 +39,8 @@ class Trainer:
         
         if config.track_grad_norm:
             self.grad_norms = []
+        self.losses = {'train': [], 'eval': [], 'test': []}
+        self.accuracy = {'train': [], 'eval': [], 'test': []}
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     
     def train(self):
@@ -63,6 +67,9 @@ class Trainer:
                 logits, loss, num_correct, num_samples = model(*data)  # forward pass
                 
                 losses.append(loss.item())
+                if config.track_loss:
+                    self.losses[split].append(loss.item())
+                    
                 total_correct += num_correct
                 total_samples += num_samples
                 
@@ -76,6 +83,8 @@ class Trainer:
             info_str = f"Epoch {ep} - {split}_loss: {epoch_loss:.4f}"
             if split == 'eval':
                 accuracy = total_correct / total_samples
+                if config.track_accuracy:
+                    self.accuracy[split].append(accuracy)
                 info_str += f" - accuracy: {accuracy:.4f}"
             logger.info(info_str)
 
