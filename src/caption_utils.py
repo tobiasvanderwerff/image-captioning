@@ -87,7 +87,9 @@ def preprocess_tokens(annotation_file):
             if j == 0:  # start the beginning of the caption with a <START> token
                 sentence_enc.append(list(known_words_final.keys()).index('<START>'))
             # If the word is in our dictionary, it is replaced by the index in the sorted dictionary
-            elif word in known_words_final:
+            if word == '':
+                continue
+            if word in known_words_final:
                 sentence_enc.append(list(known_words_final.keys()).index(word))
             else:
                 # If not, it is unknown and we give index 1
