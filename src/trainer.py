@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from src.utils import plot_grad_flow
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +61,12 @@ class Trainer:
             for data in dataloader:
                 model.train(is_train)  # put model in training or evaluation mode
 
-                data = [el.to(self.device) for el in data]  # put data on the appropriate device (cpu or gpu)
+                # put data on the appropriate device (cpu or gpu)
+                data = [el.to(self.device) if hasattr(el, 'device') else el for el in data]  
 
                 optimizer.zero_grad()  # set the gradients to zero
 
-                logits, loss, num_correct, num_samples = model(*data)  # forward pass
+                logits, loss, num_correct, num_samples, _ = model(*data)  # forward pass
                 
                 losses.append(loss.item())
                 if config.track_loss:
@@ -90,12 +92,7 @@ class Trainer:
 
         for ep in range(config.epochs):
             run_epoch('train')
+#             plot_grad_flow(model.named_parameters())
             if self.eval_ds is not None:
                 with torch.no_grad():
                     run_epoch('eval')
-                    
-    @torch.no_grad()
-    def _track_grad_norm(self):
-        """ Calculate and store the 2-norm of the gradients in the model. """
-        grad_norm = np.sqrt(np.sum(LA.norm(p.grad.cpu().numpy()) ** 2 for p in self.model.parameters() if p.requires_grad))
-        self.grad_norms.append(grad_norm)
