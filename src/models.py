@@ -95,17 +95,6 @@ class LSTMDecoder(nn.Module):
         hiddens, _ = pad_packed_sequence(hiddens, batch_first=True)  # undo packing
         logits = self.fc(hiddens)
         return logits
-                     
-def get_encoder(num_hidden):
-    """ Returns a pretrained resnet34 image encoder. """
-    encoder = models.resnet34(pretrained=True)
-    in_features = encoder.fc.in_features
-    encoder.fc = nn.Linear(in_features, num_hidden)  # ensure that the output of the encoder is of the right size 
-    for p in encoder.parameters():  # freeze the weights
-        p.requires_grad = False
-    encoder.fc.weight.requires_grad = True  # only train the last linear layer of the encoder
-    encoder.fc.bias.requires_grad = True
-    return encoder
 
 class ResNetEncoder(nn.Module):
     """ Pretrained resnet34 image encoder """
@@ -128,3 +117,45 @@ class ResNetEncoder(nn.Module):
         features = self.bn(features)
         return features
         
+def get_encoder_MobileNet(num_hidden):
+    """Returns a pretrained MobileNet_v2 encoder"""
+    encoder = models.mobilenet_v2(pretrained=True)
+    layer = encoder.classifier[1]
+    in_features = layer.in_features
+    encoder.classifier[1] = nn.Linear(in_features, num_hidden)
+    for p in encoder.parameters():
+        p.requires_grad = False
+    encoder.classifier[1].weight.requires_grad = True   
+    return encoder
+
+def get_encoder_VGGnet(num_hidden):
+    """Returns a pretrained VGG16 encoder"""
+    encoder = models.vgg16(pretrained=True)
+    layer = encoder.classifier[6]
+    in_features = layer.in_features
+    encoder.classifier[6] = nn.Linear(in_features, num_hidden)
+    for p in encoder.parameters():
+        p.requires_grad = False
+    encoder.classifier[6].weight.requires_grad = True   
+    return encoder
+    
+def get_encoder_DenseNet(num_hidden):
+    """Returns a pretrained DenseNet encoder"""
+    encoder = models.densenet161(pretrained=True)
+    in_features = encoder.classifier.in_features
+    encoder.classifier = nn.Linear(in_features, num_hidden)
+    for p in encoder.parameters():
+        p.requires_grad = False
+    encoder.classifier.weight.requires_grad = True   
+    return encoder   
+
+def get_encoder_Inception(num_hidden):
+    """Returns a pretrained Inception encoder"""
+    encoder = models.inception_v3(pretrained=True)
+    print(encoder)
+    in_features = encoder.fc.in_features
+    encoder.fc = nn.Linear(in_features, num_hidden)
+    for p in encoder.parameters():
+        p.requires_grad = False
+    encoder.fc.weight.requires_grad = True   
+    return encoder  	
