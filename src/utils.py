@@ -16,28 +16,25 @@ def collate_fn(batch):
     customizes the default behavior by adding padding of the captions. It pads each caption to the length 
     of the longest caption in the batch. 
     """
-    imgs, captions, targets, split = zip(*batch)
+    imgs, captions, split = zip(*batch)
     ordering, _ = zip(*sorted(enumerate(captions), reverse=True, key=lambda it: len(it[1])))
     captions = [captions[i] for i in ordering]
-    targets = [targets[i] for i in ordering]
     imgs = [imgs[i] for i in ordering]
     seq_lengths = [len(seq) for seq in captions]
     max_seq_len = max(seq_lengths)
 
     # Apply padding. NOTE: the value of the padding token is assumed to be 0.
     captions_pad = np.zeros((len(captions), max_seq_len))
-    targets_pad = np.zeros((len(captions), max_seq_len-1))
-    for i, (seq, target) in enumerate(zip(captions, targets)):
+    for i, seq in enumerate(captions):
         captions_pad[i, :seq_lengths[i]] = seq
-        targets_pad[i, :seq_lengths[i]-1] = target
         
     # Convert the data to PyTorch tensors.
     to_long_tensor = partial(torch.tensor, dtype=torch.long)
     imgs = torch.stack(imgs, 0)
-    captions_pad, seq_lengths, targets_pad = map(to_long_tensor, (captions_pad, seq_lengths, targets_pad))
+    captions_pad, seq_lengths = map(to_long_tensor, (captions_pad, seq_lengths))
     
-#     return imgs, captions_pad, seq_lengths, targets_pad
-    return imgs, split, captions_pad, seq_lengths, targets_pad
+#     return imgs, captions_pad, seq_lengths
+    return imgs, split, captions_pad, seq_lengths
 
 
 def plot_grad_flow(named_parameters):

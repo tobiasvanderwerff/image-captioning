@@ -29,20 +29,20 @@ class EncoderDecoder(nn.Module):
         
         logger.info(f"Number of trainable parameters: {count_parameters(self)}")  # TODO: this is not right for the encoder
         
-    def forward(self, imgs, split, captions=None, seq_lengths=None, targets=None):
+    def forward(self, imgs, split, captions=None, seq_lengths=None):
+        # This follows the implementation in the 2015 paper 'Show and Tell' by Vinyals et al. We feed the image
+        # through the encoder, after which the LSTM is initialized by running the image features through the LSTM
+        # and using the consequent hidden and cell state to run the LSTM for generating words.
+        
         if type(split) == list or type(split) == tuple:
             split = split[0] # TODO: fix this?
         assert split in ['train', 'eval', 'test']
         
         batch, *_ = imgs.shape
+        max_seq_len = captions.size(1)
         loss, num_correct, sampled_ids = None, None, None
         
-        # This follows the implementation in the 2015 paper 'Show and Tell' by Vinyals et al. We feed the image
-        # through the encoder, after which the LSTM is initialized by running the image features through the LSTM
-        # and using the consequent hidden and cell state to run the LSTM for generating words.
-        
         img_features = self.encoder(imgs)  # img_features: (batch, num_hidden)
-        # TODO: targets are redundant, can simply use captions and leave out the targets argument.
         if split == 'train':
             all_logits = self.decoder(captions, img_features, seq_lengths.cpu())
             loss = F.cross_entropy(all_logits.transpose(2, 1), captions, ignore_index=self.decoder.pad_token_idx)
@@ -50,7 +50,7 @@ class EncoderDecoder(nn.Module):
             all_logits, sampled_ids = [], []
             hiddens = None
             lstm_in = img_features.unsqueeze(1)
-            for t in range(self.max_seq_len):
+            for t in range(max_seq_len):
                 lstm_out, hiddens = self.decoder.lstm(lstm_in, hiddens)
                 logits = self.decoder.fc(lstm_out)
                 _, sample = logits.max(-1)
@@ -59,12 +59,12 @@ class EncoderDecoder(nn.Module):
                 all_logits.append(logits)
             sampled_ids = torch.stack(sampled_ids, 1)
             all_logits = torch.cat(all_logits, 1)
-            if targets is not None:
-                loss = F.cross_entropy(all_logits.transpose(1, 2), captions, ignore_index=self.decoder.pad_token_idx)
+            if captions is not None:
+                loss = F.cross_entropy(all_logits.transpose(2, 1), captions, ignore_index=self.decoder.pad_token_idx)
                 # TODO: num_correct is no longer correct since padding values are also included here
-        if targets is not None:
+        if captions is not None:
             num_correct = (all_logits.argmax(-1) == captions).sum().item()  
-        return all_logits, loss, num_correct, batch * self.max_seq_len, sampled_ids
+        return all_logits, loss, num_correct, batch * max_seq_len, sampled_ids
     
     def sample(self, imgs):
         # TODO
