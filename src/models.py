@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchtext.data.metrics import bleu_score
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from torchvision import models
 from src.utils import count_parameters
@@ -39,8 +40,8 @@ class EncoderDecoder(nn.Module):
         assert split in ['train', 'eval', 'test']
         
         batch, *_ = imgs.shape
-        max_seq_len = captions.size(1)
         loss, num_correct, sampled_ids = None, None, None
+        max_seq_len = self.max_seq_len if split == 'test' else captions.size(1)
         
         img_features = self.encoder(imgs)  # img_features: (batch, num_hidden)
         if split == 'train':
@@ -67,7 +68,7 @@ class EncoderDecoder(nn.Module):
         return all_logits, loss, num_correct, batch * max_seq_len, sampled_ids
     
     def sample(self, imgs):
-        # TODO
+        # TODO. Although, perhaps forward is sufficient for sampling...
         pass
     
 
@@ -86,6 +87,7 @@ class LSTMDecoder(nn.Module):
         self.emb = nn.Embedding(vocab_size, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, num_hidden, num_layers, batch_first=True, bidirectional=bidirectional)
         self.fc = nn.Linear(num_hidden, vocab_size)
+        self.drop = nn.Dropout(p=0.5)
     
     def forward(self, captions, img_features, seq_lengths):
         embs = self.emb(captions)  # (batch, seq_len) -> (batch, seq_len, embedding_dim) 
@@ -93,15 +95,16 @@ class LSTMDecoder(nn.Module):
         packed = pack_padded_sequence(embs, seq_lengths, batch_first=True)
         hiddens, _ = self.lstm(packed)
         hiddens, _ = pad_packed_sequence(hiddens, batch_first=True)  # undo packing
+        hiddens = self.drop(hiddens)
         logits = self.fc(hiddens)
         return logits
 
 class ResNetEncoder(nn.Module):
-    """ Pretrained resnet34 image encoder """
+    """ Pretrained resnet50 image encoder """
     
     def __init__(self, num_hidden):
         super().__init__()
-        resnet = models.resnet34(pretrained=True) 
+        resnet = models.resnet50(pretrained=True) 
         modules = list(resnet.children())
         in_features = modules[-1].in_features
         

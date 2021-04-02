@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from torchvision import transforms
 
 
 def count_parameters(model):
@@ -38,14 +39,15 @@ def collate_fn(batch):
 
 
 def plot_grad_flow(named_parameters):
-    '''Plots the gradients flowing through different layers in the net during training.
+    """
+    Plots the gradients flowing through different layers in the net during training.
     Can be used for checking for possible gradient vanishing / exploding problems.
     
     Usage: Plug this function in Trainer class after loss.backwards() as 
     "plot_grad_flow(self.model.named_parameters())" to visualize the gradient flow
     
-    Taken from https://discuss.pytorch.org/t/check-gradient-flow-in-network/15063/8 '''
-
+    Taken from https://discuss.pytorch.org/t/check-gradient-flow-in-network/15063/8 
+    """
     ave_grads = []
     max_grads= []
     layers = []
@@ -67,4 +69,37 @@ def plot_grad_flow(named_parameters):
     plt.legend([Line2D([0], [0], color="c", lw=4),
                 Line2D([0], [0], color="b", lw=4),
                 Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+    plt.show()
+    
+@torch.no_grad()
+def make_predictions(model, dataset, n_predictions=2):
+    """
+    Make predictions on a fixed subset of the dataset. This is primarily for 
+    the purpose of showing intermediate predictions of the model as it is training.
+    """
+    assert n_predictions > 0
+    model.eval()
+    
+    indices = list(range(n_predictions))
+    imgs = [dataset[i][0] for i in indices]
+    imgs = torch.stack(imgs, 0).to(model.device)
+    logits, *_ = model(imgs, 'test')
+    _, sampled_ids = logits.max(-1)
+                    
+    # get image statistics from dataset (mean and standard deviation from normalization transform)
+    if isinstance(dataset, torch.utils.data.dataset.Subset):
+        dataset = dataset.dataset
+    normalize_trnsf = [trnsf for trnsf in dataset.trnsf.transforms if isinstance(trnsf, transforms.Normalize)][0]
+        
+    # show predictions
+    for i, im in enumerate(imgs):
+        imshow(im, normalize_trnsf.mean, normalize_trnsf.std)
+        print(dataset.decode_caption(sampled_ids[i]))
+        
+def imshow(im, mean, std):
+    imnp = im.cpu().numpy()
+    imnp = imnp * std[:, np.newaxis, np.newaxis] + mean[:, np.newaxis, np.newaxis]  # undo normalization
+    imnp = np.clip(imnp, 0, 1)
+    imnp = imnp.transpose([1, 2, 0])
+    plt.imshow(imnp)
     plt.show()

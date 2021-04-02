@@ -2,6 +2,7 @@ numpy
 matplotlib
 torch
 torchvision
+torchtext
 requests
 Pillow
 jupyter

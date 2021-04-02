@@ -30,13 +30,15 @@ class TrainerConfig:
             setattr(self, k, v)
     
 class Trainer:
-    def __init__(self, config, model, optimizer, train_ds, eval_ds=None, collate_fn=None):
+    def __init__(self, config, model, optimizer, train_ds, eval_ds=None, 
+                 collate_fn=None, evaluation_callback_fn=None):
         self.config = config
         self.model = model
         self.optimizer = optimizer
         self.train_ds = train_ds
         self.eval_ds = eval_ds
         self.collate_fn = collate_fn
+        self.evaluation_callback_fn = evaluation_callback_fn
         
         if config.track_grad_norm:
             self.grad_norms = []
@@ -96,3 +98,11 @@ class Trainer:
             if self.eval_ds is not None:
                 with torch.no_grad():
                     run_epoch('eval')
+                    if self.evaluation_callback_fn is not None:  # this can be used to show intermediate predictions of the model
+                        self.evaluation_callback_fn(model, self.eval_ds)
+                    
+    @torch.no_grad()
+    def _track_grad_norm(self):
+        """ Calculate and store the 2-norm of the gradients in the model. """
+        grad_norm = np.sqrt(np.sum(LA.norm(p.grad.cpu().numpy()) ** 2 for p in self.model.parameters() if p.requires_grad))
+        self.grad_norms.append(grad_norm)
