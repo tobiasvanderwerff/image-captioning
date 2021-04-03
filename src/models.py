@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchtext.data.metrics import bleu_score
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from torchvision import models
 from src.utils import count_parameters
@@ -30,7 +29,7 @@ class EncoderDecoder(nn.Module):
         
         logger.info(f"Number of trainable parameters: {count_parameters(self)}")  # TODO: this is not right for the encoder
         
-    def forward(self, imgs, split, captions=None, seq_lengths=None):
+    def forward(self, imgs, split, captions=None, seq_lengths=None, metrics_callback_fn=None):
         # This follows the implementation in the 2015 paper 'Show and Tell' by Vinyals et al. We feed the image
         # through the encoder, after which the LSTM is initialized by running the image features through the LSTM
         # and using the consequent hidden and cell state to run the LSTM for generating words.
@@ -40,7 +39,7 @@ class EncoderDecoder(nn.Module):
         assert split in ['train', 'eval', 'test']
         
         batch, *_ = imgs.shape
-        loss, num_correct, sampled_ids = None, None, None
+        loss, sampled_ids, scores = None, None, None
         max_seq_len = self.max_seq_len if split == 'test' else captions.size(1)
         
         img_features = self.encoder(imgs)  # img_features: (batch, num_hidden)
@@ -61,11 +60,8 @@ class EncoderDecoder(nn.Module):
             sampled_ids = torch.stack(sampled_ids, 1)
             all_logits = torch.cat(all_logits, 1)
             if captions is not None:
-                loss = F.cross_entropy(all_logits.transpose(2, 1), captions, ignore_index=0)
-                # TODO: num_correct is no longer correct since padding values are also included here
-        if captions is not None:
-            num_correct = (all_logits.argmax(-1) == captions).sum().item()  
-        return all_logits, loss, num_correct, batch * max_seq_len, sampled_ids
+                scores = list(metrics_callback_fn(sampled_ids, captions))
+        return all_logits, loss, scores, sampled_ids
     
     def sample(self, imgs):
         # TODO. Although, perhaps forward is sufficient for sampling...

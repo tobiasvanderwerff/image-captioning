@@ -70,9 +70,10 @@ class FlickrDataset(Dataset):
         img_annotations = self.annotations[img_id]
         if self.split == 'train':
             ann_idx = np.random.randint(0, len(img_annotations) - 1)  # select one of the five annotations at random
+            annotation = img_annotations[ann_idx]
         else:
-            ann_idx = 0  # select the first annotation for evaluation/testing
-        annotation = img_annotations[ann_idx]
+            # select all 5 captions for evaluation, for the purposes of calculating BLEU score
+            annotation = img_annotations
         im = Image.open(self.img_dir/img_id)
         if self.trnsf is not None:
             im = self.trnsf(im)

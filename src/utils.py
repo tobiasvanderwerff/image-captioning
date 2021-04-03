@@ -10,7 +10,8 @@ from torchvision import transforms
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-def collate_fn(batch):
+
+def train_collate_fn(batch):
     """ 
     This is a function which changes the batching function of the PyTorch data loader, 
     which would normally collate a sample of datapoints from the dataset into a mini-batch. This function
@@ -34,7 +35,29 @@ def collate_fn(batch):
     imgs = torch.stack(imgs, 0)
     captions_pad, seq_lengths = map(to_long_tensor, (captions_pad, seq_lengths))
     
-#     return imgs, captions_pad, seq_lengths
+    return imgs, split, captions_pad, seq_lengths
+
+
+def eval_collate_fn(batch):
+    """ 
+    This function works similar to collate_fn, but it works with all 5 captions for each data point. 
+    This can be used for calculating metrics such as BLEU score.
+    """
+    imgs, captions, split = zip(*batch)
+    seq_lengths = np.array([np.array([len(caption) for caption in caption_list]) for caption_list in captions])
+    max_seq_len = np.max(seq_lengths)
+
+    # Apply padding. NOTE: the value of the padding token is assumed to be 0.
+    captions_pad = np.zeros((len(captions), 5, max_seq_len))  # 5 captions per image
+    for i, caption_list in enumerate(captions):
+        for j, caption in enumerate(caption_list):
+            captions_pad[i, j, :seq_lengths[i, j]] = caption
+        
+    # Convert the data to PyTorch tensors.
+    to_long_tensor = partial(torch.tensor, dtype=torch.long)
+    imgs = torch.stack(imgs, 0)
+    captions_pad, seq_lengths = map(to_long_tensor, (captions_pad, seq_lengths))
+    
     return imgs, split, captions_pad, seq_lengths
 
 
@@ -71,6 +94,7 @@ def plot_grad_flow(named_parameters):
                 Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
     plt.show()
     
+    
 @torch.no_grad()
 def make_predictions(model, dataset, n_predictions=2):
     """
@@ -96,10 +120,12 @@ def make_predictions(model, dataset, n_predictions=2):
         imshow(im, normalize_trnsf.mean, normalize_trnsf.std)
         print(dataset.lang.decode_caption(sampled_ids[i].cpu().numpy()))
         
+        
 def imshow(im, mean, std):
     imnp = im.cpu().numpy()
     imnp = imnp * std[:, np.newaxis, np.newaxis] + mean[:, np.newaxis, np.newaxis]  # undo normalization
     imnp = np.clip(imnp, 0, 1)
     imnp = imnp.transpose([1, 2, 0])
     plt.imshow(imnp)
+    plt.axis("off")
     plt.show()
