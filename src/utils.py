@@ -94,7 +94,7 @@ def make_predictions(model, dataset, n_predictions=2):
     # show predictions
     for i, im in enumerate(imgs):
         imshow(im, normalize_trnsf.mean, normalize_trnsf.std)
-        print(dataset.decode_caption(sampled_ids[i]))
+        print(dataset.lang.decode_caption(sampled_ids[i].cpu().numpy()))
         
 def imshow(im, mean, std):
     imnp = im.cpu().numpy()

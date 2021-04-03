@@ -46,7 +46,7 @@ class EncoderDecoder(nn.Module):
         img_features = self.encoder(imgs)  # img_features: (batch, num_hidden)
         if split == 'train':
             all_logits = self.decoder(captions, img_features, seq_lengths.cpu())
-            loss = F.cross_entropy(all_logits.transpose(2, 1), captions, ignore_index=self.decoder.pad_token_idx)
+            loss = F.cross_entropy(all_logits.transpose(2, 1), captions, ignore_index=0)
         if split == 'eval' or split == 'test':
             all_logits, sampled_ids = [], []
             hiddens = None
@@ -61,7 +61,7 @@ class EncoderDecoder(nn.Module):
             sampled_ids = torch.stack(sampled_ids, 1)
             all_logits = torch.cat(all_logits, 1)
             if captions is not None:
-                loss = F.cross_entropy(all_logits.transpose(2, 1), captions, ignore_index=self.decoder.pad_token_idx)
+                loss = F.cross_entropy(all_logits.transpose(2, 1), captions, ignore_index=0)
                 # TODO: num_correct is no longer correct since padding values are also included here
         if captions is not None:
             num_correct = (all_logits.argmax(-1) == captions).sum().item()  
@@ -73,15 +73,12 @@ class EncoderDecoder(nn.Module):
     
 
 class LSTMDecoder(nn.Module):
-    def __init__(self, num_hidden, embedding_dim, vocab_size, pad_token_idx,
-                 start_token_idx, num_layers=2, bidirectional=False):
+    def __init__(self, num_hidden, embedding_dim, vocab_size, num_layers=2, bidirectional=False):
         super().__init__()
         self.num_hidden = num_hidden
         self.embedding_dim = embedding_dim
         self.vocab_size = vocab_size
         self.num_layers = num_layers
-        self.pad_token_idx = pad_token_idx
-        self.start_token_idx = start_token_idx
         self.num_directions = 2 if bidirectional else 1
         
         self.emb = nn.Embedding(vocab_size, embedding_dim)
