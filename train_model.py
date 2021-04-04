@@ -22,12 +22,6 @@ from src.utils import set_seed, train_collate_fn, eval_collate_fn, make_predicti
 from src.metrics import calculate_bleu_score
 from src.models import EncoderDecoder, LSTMDecoder, ResNetEncoder
 
-# TODO: these are currently not used. All parameters are loaded from a .yaml file, but it might be useful
-# to allow for specification of arguments on the command line.
-parser = argparse.ArgumentParser()
-parser.add_argument('--data_path')
-args = parser.parse_args()
-
 
 def main(*args):
     
@@ -156,4 +150,9 @@ def main(*args):
 
     
 if __name__ == '__main__':
+    # TODO: these arguments are currently not used. All parameters are loaded from a .yaml file, but it might be useful
+    # to allow for specification of arguments on the command line.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path')
+    args = parser.parse_args()
     main(args)
