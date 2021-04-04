@@ -9,3 +9,4 @@ jupyter
 notebook
 nltk
 pyyaml
+tqdm
