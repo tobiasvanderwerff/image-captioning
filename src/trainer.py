@@ -4,6 +4,7 @@ Basic training loop. This code is meant to be generic and can be used to train d
 
 import logging
 import itertools
+from pathlib import Path
 
 import numpy as np
 import numpy.linalg as LA
@@ -12,6 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from src.utils import plot_grad_flow
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,7 @@ class TrainerConfig:
     num_workers = 0
     track_loss = False
     track_grad_norm = False
+    checkpoint_path = None
 
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
@@ -31,7 +34,7 @@ class TrainerConfig:
 class Trainer:
     def __init__(self, config, model, optimizer, train_ds, eval_ds=None, train_collate_fn=None,
                  eval_collate_fn = None, evaluation_callback_fn=None, metrics_callback_fn=None, 
-                 max_epochs_no_change=5):
+                 max_epochs_no_change=10):
         self.config = config
         self.model = model
         self.optimizer = optimizer
@@ -44,11 +47,26 @@ class Trainer:
         self.max_epochs_no_change = max_epochs_no_change
         
         self.grad_norms = []    
-        self.best_score = 0
+        self.best_score = float('-inf')
+        self.epoch = 0
         self.epochs_no_change = 0
         self.losses = {'train': [], 'eval': [], 'test': []}
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    
+                    
+    def save_checkpoint(self, score, **kwargs):
+        assert Path(self.config.checkpoint_path).exists(), 'checkpoint path does not exist'
+        cpt = {'model_state_dict': self.model.state_dict(), 
+               'optimizer_state_dict': self.optimizer.state_dict(),
+               'score': score}
+        cpt.update(**kwargs)
+        torch.save(cpt, Path(self.config.checkpoint_path) / f'ep{self.epoch}_{score}')
+                            
+    @torch.no_grad()
+    def _track_grad_norm(self):
+        """ Calculate and store the 2-norm of the gradients in the model. """
+        grad_norm = np.sqrt(np.sum(LA.norm(p.grad.cpu().numpy()) ** 2 for p in self.model.parameters() if p.requires_grad))
+        self.grad_norms.append(grad_norm)
+        
     def train(self):
         model, optimizer, config = self.model, self.optimizer, self.config
         trainloader = DataLoader(self.train_ds, config.batch_size, shuffle=True, 
@@ -63,7 +81,9 @@ class Trainer:
             is_train = True if split == 'train' else False
             dataloader = trainloader if split == 'train' else evalloader
             losses, scores = [], []
-            for data in dataloader:
+            
+            pbar = tqdm(dataloader, total=len(dataloader)) if is_train else dataloader
+            for data in pbar:
                 model.train(is_train)  # put model in training or evaluation mode
 
                 # put data on the appropriate device (cpu or gpu)
@@ -86,7 +106,7 @@ class Trainer:
                         scores.extend(score)
                     else:
                         scores.append(score)
-                
+                        
                 if is_train:
                     loss.backward()  # calculate gradients
                     if config.track_grad_norm:
@@ -96,25 +116,24 @@ class Trainer:
             info_str = ""
             if loss is not None:
                 epoch_loss = np.mean(losses)
-                info_str += (f"Epoch {ep} - {split}_loss: {epoch_loss:.4f}")
+                info_str += (f"epoch {ep} - {split}_loss: {epoch_loss:.4f}")
             if scores != []:
                 epoch_score = np.mean(scores)
                 if epoch_score > self.best_score:
                     self.best_score = epoch_score
                     self.epochs_no_change = 0
+                    if self.config.checkpoint_path is not None:  # save the new best model
+                        self.save_checkpoint(epoch_score, epoch=self.epoch)
                 else:
                     self.epochs_no_change += 1
                 all_scores.append(epoch_score)
-                info_str += f"score: {epoch_score:.1f}"
+#                 info_str += f"score: {epoch_score:.1f}"
             if info_str != "":
                 logger.info(info_str)
 
         all_scores = []
         for ep in range(config.epochs):
-            if self.epochs_no_change >= self.max_epochs_no_change:  # stop early
-                # TODO: save best configuration when the score was best
-                logger.info(f"Stopped early at epoch {ep}.")
-                break
+            self.epoch = ep
             run_epoch('train')
 #             plot_grad_flow(model.named_parameters())
             if self.eval_ds is not None:
@@ -122,9 +141,6 @@ class Trainer:
                     run_epoch('eval')
                     if self.evaluation_callback_fn is not None:  # this can be used to show intermediate predictions of the model
                         self.evaluation_callback_fn(model, self.eval_ds)
-                    
-    @torch.no_grad()
-    def _track_grad_norm(self):
-        """ Calculate and store the 2-norm of the gradients in the model. """
-        grad_norm = np.sqrt(np.sum(LA.norm(p.grad.cpu().numpy()) ** 2 for p in self.model.parameters() if p.requires_grad))
-        self.grad_norms.append(grad_norm)
+            if self.epochs_no_change >= self.max_epochs_no_change:  # stop early
+                logger.info(f"Stopped early at epoch {ep}.")
+                break

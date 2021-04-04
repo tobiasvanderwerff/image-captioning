@@ -7,7 +7,7 @@ from torchtext.data.metrics import bleu_score
 logger = logging.getLogger(__name__)
 
 @torch.no_grad()
-def calculate_bleu_score(candidate, reference, lang, max_n=2):
+def calculate_bleu_score(candidate, reference, lang, max_n=2, log_result=False):
     """
     Input:
     - candidate: numpy array or pytorch tensor of shape (batch, max_seq_len1)
@@ -30,7 +30,8 @@ def calculate_bleu_score(candidate, reference, lang, max_n=2):
     scores.append(score * 100)
     
     # logging
-#     blue_mean = np.mean(scores)
-#     logger.info(f"Mean BLEU score: {blue_mean:.2f}")
+    if log_result:
+        blue_mean = np.mean(scores)
+        logger.info(f"BLEU-{max_n} score: {blue_mean:.2f}")
     
     return np.array(scores)

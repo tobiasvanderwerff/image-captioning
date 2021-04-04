@@ -3,23 +3,33 @@
 # different experiments. Note that experiments are seperated by triple dots
 # (---).
 
-experiment-name: exp1
-save_folder: ./experiments/learning_rate_0.1
+path_to_save: ./experiments/resnet50/adam/
 
 parameters:
-  lr: 0.1
+  num_hidden: 512
+  embedding_dim: 512
   batch_size: 64
-  epochs: 100
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: Adam
 
 --- 
 
-experiment-name: exp2
-save_folder: ./experiments/learning_rate_0.01
+path_to_save: ./experiments/resnet50/rmsprop/
 
 parameters:
-  lr: 0.01
+  num_hidden: 512
+  embedding_dim: 512
   batch_size: 64
-  epochs: 100
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: RMSProp
 
 ---
 
