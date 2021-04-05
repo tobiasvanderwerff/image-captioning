@@ -22,12 +22,6 @@ from src.utils import set_seed, train_collate_fn, eval_collate_fn, make_predicti
 from src.metrics import calculate_bleu_score
 from src.models import EncoderDecoder, LSTMDecoder, ResNetEncoder
 
-# TODO: these are currently not used. All parameters are loaded from a .yaml file, but it might be useful
-# to allow for specification of arguments on the command line.
-parser = argparse.ArgumentParser()
-parser.add_argument('--data_path')
-args = parser.parse_args()
-
 
 def main(*args):
     
@@ -51,7 +45,6 @@ def main(*args):
         assert optimizer_name.lower() in ['adam', 'rmsprop', 'sgd']
         assert encoder_name.lower() in ['resnet34', 'resnet50']  # TODO: add more encoders here
         
-
         save_path = Path(save_folder)
         cp_path = save_path / 'checkpoints'
         save_path.mkdir(exist_ok=True, parents=True)
@@ -139,13 +132,13 @@ def main(*args):
             optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)   
 
         # overfit on a mini dataset (for debugging purposes)
-        ds_train_mini = torch.utils.data.Subset(ds_train, [random.randint(0, len(ds_train) - 1) for _ in range(3)])
-        ds_eval_mini = torch.utils.data.Subset(ds_eval, [0, 1])
+#         ds_train_mini = torch.utils.data.Subset(ds_train, [random.randint(0, len(ds_train) - 1) for _ in range(3)])
+#         ds_eval_mini = torch.utils.data.Subset(ds_eval, [0, 1])
 
         config = TrainerConfig(batch_size=batch_size, epochs=epochs, track_loss=True, checkpoint_path=cp_path)
-        trainer = Trainer(config, model, optimizer, ds_train_mini, ds_eval_mini,
-                          train_collate_fn=train_collate_fn, eval_collate_fn=eval_collate_fn,
-                          metrics_callback_fn=partial(calculate_bleu_score, lang=lang))
+#         trainer = Trainer(config, model, optimizer, ds_train_mini, ds_eval_mini,
+#                           train_collate_fn=train_collate_fn, eval_collate_fn=eval_collate_fn,
+#                           metrics_callback_fn=partial(calculate_bleu_score, lang=lang))
         trainer = Trainer(config, model, optimizer, ds_train, ds_eval, train_collate_fn,
                           eval_collate_fn, metrics_callback_fn=partial(calculate_bleu_score, lang=lang))
 
@@ -156,4 +149,9 @@ def main(*args):
 
     
 if __name__ == '__main__':
+    # TODO: these arguments are currently not used. All parameters are loaded from a .yaml file, but it might be useful
+    # to allow for specification of arguments on the command line.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path')
+    args = parser.parse_args()
     main(args)
