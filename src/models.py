@@ -60,9 +60,11 @@ class EncoderDecoder(nn.Module):
             sampled_ids = torch.stack(sampled_ids, 1)
             all_logits = torch.cat(all_logits, 1)
             if captions is not None:
+                scores = {}
                 for n in range(1, 5):
-                    # note: we simply overwrite scores for each loop iteration, and thus return BLEU-4 scores
-                    scores = metrics_callback_fn(sampled_ids, captions, max_n=n, log_result=True)
+                    # calculate BLEU scores
+                    bleu_score = metrics_callback_fn(sampled_ids, captions, max_n=n)
+                    scores.update({f'BLEU-{n}': bleu_score})
         return all_logits, loss, scores, sampled_ids
     
     def sample(self, imgs):

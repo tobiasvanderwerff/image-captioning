@@ -80,7 +80,7 @@ class Trainer:
         def run_epoch(split):
             is_train = True if split == 'train' else False
             dataloader = trainloader if split == 'train' else evalloader
-            losses, scores = [], []
+            losses, scores = [], {}
             
             pbar = tqdm(dataloader, total=len(dataloader)) if is_train else dataloader
             for data in pbar:
@@ -102,10 +102,13 @@ class Trainer:
                         self.losses[split].append(loss.item())
                         
                 if score is not None:
-                    if isinstance(score, list):
-                        scores.extend(score)
+                    if scores == {}:
+                        scores.update(score)
                     else:
-                        scores.append(score)
+                        for metric in score.keys():
+                            scores[metric] = scores[metric].extend(score[metric])
+                    for metric, values in score.items():
+                        logger.info(f"{metric}: {np.mean(values):.1f}")
                         
                 if is_train:
                     loss.backward()  # calculate gradients
@@ -117,8 +120,9 @@ class Trainer:
             if loss is not None:
                 epoch_loss = np.mean(losses)
                 info_str += (f"epoch {ep} - {split}_loss: {epoch_loss:.4f}")
-            if scores != []:
-                epoch_score = np.mean(scores)
+            if scores != {}:
+                eval_score = scores['BLEU-2']  # TODO: this should be application independent, change this
+                epoch_score = np.mean(eval_score)
                 if epoch_score > self.best_score:
                     self.best_score = epoch_score
                     self.epochs_no_change = 0
@@ -126,12 +130,9 @@ class Trainer:
                         self.save_checkpoint(epoch_score, epoch=self.epoch)
                 else:
                     self.epochs_no_change += 1
-                all_scores.append(epoch_score)
-#                 info_str += f"score: {epoch_score:.1f}"
             if info_str != "":
                 logger.info(info_str)
 
-        all_scores = []
         for ep in range(config.epochs):
             self.epoch = ep
             run_epoch('train')
