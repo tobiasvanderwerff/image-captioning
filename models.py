@@ -1,0 +1,197 @@
+"""
+Encoder-decoder classes/functions for image captioning.
+The main idea is:
+- calculate image features using CNN encoder
+- feed calculated image features into the initial state of an LSTM language model, which makes 
+  use of an attention mechanism in order to generate a caption for the image.
+"""
+
+import logging
+from collections import OrderedDict
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from torchvision import models
+from src.utils import count_parameters
+
+logger = logging.getLogger(__name__)
+
+class EncoderDecoder(nn.Module):
+    def __init__(self, encoder, decoder, device, max_seq_len=30):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+        self.device = device
+        self.max_seq_len = max_seq_len
+        
+        logger.info(f"Number of trainable parameters: {count_parameters(self)}")  # TODO: this is not right for the encoder
+        
+    def forward(self, imgs, split, captions=None, seq_lengths=None, metrics_callback_fn=None):
+        # This follows the implementation in the 2015 paper 'Show and Tell' by Vinyals et al. We feed the image
+        # through the encoder, after which the LSTM is initialized by running the image features through the LSTM
+        # and using the consequent hidden and cell state to run the LSTM for generating words.
+        
+        if type(split) == list or type(split) == tuple:
+            split = split[0] # TODO: fix this?
+        assert split in ['train', 'eval', 'test']
+        
+        batch, *_ = imgs.shape
+        loss, sampled_ids, scores = None, None, None
+        max_seq_len = self.max_seq_len if split == 'test' else captions.size(1)
+        
+        img_features = self.encoder(imgs)  # img_features: (batch, num_hidden)
+        if split == 'train':
+            all_logits = self.decoder(captions, img_features, seq_lengths.cpu())
+            loss = F.cross_entropy(all_logits.transpose(2, 1), captions, ignore_index=0)
+        if split == 'eval' or split == 'test':
+            all_logits, sampled_ids = [], []
+            hiddens = None
+            lstm_in = img_features.unsqueeze(1)
+            for t in range(max_seq_len):
+                lstm_out, hiddens = self.decoder.lstm(lstm_in, hiddens)
+                logits = self.decoder.fc(lstm_out)
+                _, sample = logits.max(-1)
+                lstm_in = self.decoder.emb(sample)
+                sampled_ids.append(sample.squeeze(1))
+                all_logits.append(logits)
+            sampled_ids = torch.stack(sampled_ids, 1)
+            all_logits = torch.cat(all_logits, 1)
+            if captions is not None:
+                scores = {}
+                for n in range(1, 5):
+                    # calculate BLEU scores
+                    bleu_score = metrics_callback_fn(sampled_ids, captions, max_n=n)
+                    scores.update({f'BLEU-{n}': bleu_score})
+        return all_logits, loss, scores, sampled_ids
+    
+    def sample(self, imgs):
+        # TODO. Although, perhaps forward is sufficient for sampling...
+        pass
+    
+
+class LSTMDecoder(nn.Module):
+    def __init__(self, num_hidden, embedding_dim, vocab_size, num_layers=2, bidirectional=False):
+        super().__init__()
+        self.num_hidden = num_hidden
+        self.embedding_dim = embedding_dim
+        self.vocab_size = vocab_size
+        self.num_layers = num_layers
+        self.num_directions = 2 if bidirectional else 1
+        
+        self.emb = nn.Embedding(vocab_size, embedding_dim)
+        self.lstm = nn.LSTM(embedding_dim, num_hidden, num_layers, batch_first=True, bidirectional=bidirectional)
+        self.fc = nn.Linear(num_hidden, vocab_size)
+        self.drop = nn.Dropout(p=0.5)
+    
+    def forward(self, captions, img_features, seq_lengths):
+        embs = self.emb(captions)  # (batch, seq_len) -> (batch, seq_len, embedding_dim) 
+        embs = torch.cat([img_features.unsqueeze(1), embs], 1)
+        packed = pack_padded_sequence(embs, seq_lengths, batch_first=True)
+        hiddens, _ = self.lstm(packed)
+        hiddens, _ = pad_packed_sequence(hiddens, batch_first=True)  # undo packing
+        hiddens = self.drop(hiddens)
+        logits = self.fc(hiddens)
+        return logits
+
+class ResNetEncoder(nn.Module):
+    """ Pretrained resnet50 image encoder """
+    
+    def __init__(self, num_hidden):
+        super().__init__()
+        resnet = models.resnet50(pretrained=True) 
+        modules = list(resnet.children())
+        in_features = modules[-1].in_features
+        
+        self.resnet = nn.Sequential(*modules[:-1])  # remove the last fc layer
+        self.fc = nn.Linear(in_features, num_hidden, bias=False)
+        self.bn = nn.BatchNorm1d(num_hidden)
+    
+    def forward(self, imgs):
+        with torch.no_grad():  # do not keep track of resnet gradients, because we want to freeze those weights
+            features = self.resnet(imgs)
+        features = features.reshape(features.size(0), -1)
+        features = self.fc(features)
+        features = self.bn(features)
+        return features
+        
+class MobileNetEncoder(nn.Module):
+    """ Pretrained MobileNet v2 image encoder """
+
+    def __init__(self, num_hidden):
+        super().__init__()
+        self.encoder = models.mobilenet_v2(pretrained=True)
+        layer = self.encoder.classifier[1]
+        in_features = layer.in_features
+        
+        self.encoder.classifier[1] = nn.Linear(in_features, num_hidden, bias=False)
+        self.bn = nn.BatchNorm1d(num_hidden)
+    
+    def forward(self, imgs):
+        with torch.no_grad(): 
+            features = self.resnet(imgs)
+        features = features.reshape(features.size(0), -1)
+        features = self.classifier[1](features)
+        features = self.bn(features)
+        return features
+
+class VGGNetEncoder(nn.Module):
+    """ Pretrained VGG16 image encoder """
+
+    def __init__(self, num_hidden):
+        super().__init__()
+        self.encoder = models.vgg16(pretrained=True)
+        layer = self.encoder.classifier[6]
+        in_features = layer.in_features
+        
+        self.encoder.classifier[6] = nn.Linear(in_features, num_hidden, bias=False)
+        self.bn = nn.BatchNorm1d(num_hidden)
+    
+    def forward(self, imgs):
+        with torch.no_grad(): 
+            features = self.resnet(imgs)
+        features = features.reshape(features.size(0), -1)
+        features = self.classifier[6](features)
+        features = self.bn(features)
+        return features
+    
+class DenseNetEncoder(nn.Module):
+    """ Pretrained DenseNet161 image encoder """
+
+    def __init__(self, num_hidden):
+        super().__init__()
+        self.encoder = models.densenet161(pretrained=True)
+        in_features = self.encoder.classifier.in_features
+        
+        self.encoder.classifier = nn.Linear(in_features, num_hidden, bias=False)
+        self.bn = nn.BatchNorm1d(num_hidden)
+    
+    def forward(self, imgs):
+        with torch.no_grad(): 
+            features = self.resnet(imgs)
+        features = features.reshape(features.size(0), -1)
+        features = self.classifier(features)
+        features = self.bn(features)
+        return features  
+
+class InceptionEncoder(nn.Module):
+    """ Pretrained Inception v3 image encoder """
+
+    def __init__(self, num_hidden):
+        super().__init__()
+        self.encoder = models.inception_v3(pretrained=True)
+        in_features = self.encoder.fc.in_features
+        
+        self.encoder.fc = nn.Linear(in_features, num_hidden, bias=False)
+        self.bn = nn.BatchNorm1d(num_hidden)
+    
+    def forward(self, imgs):
+        with torch.no_grad(): 
+            features = self.resnet(imgs)
+        features = features.reshape(features.size(0), -1)
+        features = self.fc(features)
+        features = self.bn(features)
+        return features  	
+
