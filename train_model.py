@@ -24,26 +24,6 @@ from src.models import EncoderDecoder, LSTMDecoder, ResNetEncoder, get_encoder_D
 
 
 def main(args):
-        
-    # Set up paths for storing data
-    save_path = Path(args.data_path)
-    cp_path = save_path / 'checkpoints'
-    save_path.mkdir(exist_ok=True, parents=True)
-    cp_path.mkdir(exist_ok=True)
-    
-    # Set up logging
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                        datefmt='%d/%m/%Y %H:%M:%S',
-                        level=logging.INFO,
-                        handlers=[
-                            logging.FileHandler(save_path / 'train.log'),
-                            logging.StreamHandler()
-                        ])
-    logger = logging.getLogger(__name__)
-
-    logger.info(f'Saving all output in {save_path}')
-    logger.info(f'Saving logs in {save_path}/train.log')
-    logger.info(f'Saving checkpoints in {cp_path}')
     
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     
@@ -83,7 +63,8 @@ def main(args):
     }
 
     # Download dataset
-    img_dir, ann_file = download_flickr8k(save_path)
+    root_path = Path(args.data_path)
+    img_dir, ann_file = download_flickr8k(root_path)
 
     # Preprocess the captions
     img_captions_enc, tokens, word2idx, idx2word = preprocess_tokens(ann_file)
@@ -92,15 +73,16 @@ def main(args):
 
     # Split data up into train and evaluation set. We use the predefined train/eval splits of Flickr8k
     ds_train = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
-                             save_path/'Flickr_8k.trainImages.txt', 'train', trnsf=trnsf['train'])
+                             root_path/'Flickr_8k.trainImages.txt', 'train', trnsf=trnsf['train'])
     ds_eval = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
-                            save_path/'Flickr_8k.devImages.txt', 'eval', trnsf=trnsf['eval'])
+                            root_path/'Flickr_8k.devImages.txt', 'eval', trnsf=trnsf['eval'])
 
     # Load hyperparameters from a configuration file
     f = open('hyperparams.yaml', 'r')
     config_data = yaml.load_all(f, Loader=yaml.Loader)
 
     for experiment in config_data:  # run the experiments
+
         save_folder = experiment['path_to_save']
         params = experiment['parameters']
 
@@ -115,6 +97,25 @@ def main(args):
     
         assert optimizer_name.lower() in ['adam', 'rmsprop', 'sgd']
         assert encoder_name.lower() in ['resnet34', 'resnet50', 'vggnet', 'mobilenet', 'inception', 'densenet']  # TODO: add more encoders here
+        
+        # Set up paths for storing data
+        save_folder = Path(save_folder)
+        cp_path = root_path / save_folder / 'checkpoints'
+        (root_path / save_folder).mkdir(exist_ok=True, parents=True)
+        cp_path.mkdir(exist_ok=True)
+
+        # Set up logging
+        logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                            datefmt='%d/%m/%Y %H:%M:%S',
+                            level=logging.INFO,
+                            handlers=[
+                                logging.FileHandler(root_path / save_folder / 'train.log'),
+                                logging.StreamHandler()
+                            ])
+        logger = logging.getLogger(__name__)
+
+        logger.info(f'Saving logs in {root_path / save_folder}/train.log')
+        logger.info(f'Saving checkpoints in {cp_path}')
 
         if encoder_name.lower() == 'resnet50':
             encoder = ResNetEncoder(num_hidden)

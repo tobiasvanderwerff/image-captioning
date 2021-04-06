@@ -84,7 +84,7 @@ class LSTMDecoder(nn.Module):
         self.emb = nn.Embedding(vocab_size, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, num_hidden, num_layers, batch_first=True, bidirectional=bidirectional)
         self.fc = nn.Linear(num_hidden, vocab_size)
-        self.drop = nn.Dropout(p=0.5)
+        self.drop = nn.Dropout(p=0.1)
     
     def forward(self, captions, img_features, seq_lengths):
         embs = self.emb(captions)  # (batch, seq_len) -> (batch, seq_len, embedding_dim) 
