@@ -59,7 +59,7 @@ class Trainer:
                'optimizer_state_dict': self.optimizer.state_dict(),
                'score': score}
         cpt.update(**kwargs)
-        torch.save(cpt, Path(self.config.checkpoint_path) / f'ep{self.epoch}_{score}')
+        torch.save(cpt, Path(self.config.checkpoint_path) / f'epoch{self.epoch}_{score}')
                             
     @torch.no_grad()
     def _track_grad_norm(self):
@@ -102,13 +102,11 @@ class Trainer:
                         self.losses[split].append(loss.item())
                         
                 if score is not None:
-                    if scores == {}:
-                        scores.update(score)
-                    else:
-                        for metric in score.keys():
-                            scores[metric] = scores[metric].extend(score[metric])
-                    for metric, values in score.items():
-                        logger.info(f"{metric}: {np.mean(values):.1f}")
+                    for metric, value in score.items():
+                        if metric in scores:
+                            scores[metric].extend(value)
+                        else:
+                            scores.update({metric: value})
                         
                 if is_train:
                     loss.backward()  # calculate gradients
@@ -121,9 +119,12 @@ class Trainer:
                 epoch_loss = np.mean(losses)
                 info_str += (f"epoch {ep} - {split}_loss: {epoch_loss:.4f}")
             if scores != {}:
+                for metric, values in scores.items():
+                    logger.info(f"{metric}: {np.mean(values):.1f}")
                 eval_score = scores['BLEU-2']  # TODO: this should be application independent, change this
                 epoch_score = np.mean(eval_score)
                 if epoch_score > self.best_score:
+                    logger.info(f"New best score: {epoch_score:1f}. Saving checkpoint.")
                     self.best_score = epoch_score
                     self.epochs_no_change = 0
                     if self.config.checkpoint_path is not None:  # save the new best model
@@ -143,5 +144,5 @@ class Trainer:
                     if self.evaluation_callback_fn is not None:  # this can be used to show intermediate predictions of the model
                         self.evaluation_callback_fn(model, self.eval_ds)
             if self.epochs_no_change >= self.max_epochs_no_change:  # stop early
-                logger.info(f"Stopped early at epoch {ep}.")
+                logger.info(f"Stopped early at epoch {ep}. Best score: {self.best_score}")
                 break
