@@ -4,7 +4,6 @@ import numpy as np
 import torch
 from torchtext.data.metrics import bleu_score
 
-logger = logging.getLogger(__name__)
 
 @torch.no_grad()
 def calculate_bleu_score(candidate, reference, lang, max_n=2):
@@ -15,7 +14,7 @@ def calculate_bleu_score(candidate, reference, lang, max_n=2):
     - lang: Lang class instance that can be used to decode numerical captions
     
     Output:
-    - scores: numpy array containing BLEU scores for each sample, of shape (batch,)
+    - scores: list containing BLEU scores for each sample, where len(scores) == batch
     """
     if isinstance(candidate, torch.Tensor):
         candidate = candidate.cpu().numpy()
@@ -23,14 +22,10 @@ def calculate_bleu_score(candidate, reference, lang, max_n=2):
         reference = reference.cpu().numpy()
     
     scores = []
-    candidate = [lang.decode_caption(ann).split() for ann in candidate]
-    reference = [[lang.decode_caption(ann).split() for ann in ann_list] for ann_list in reference]
+    for cand, ref_list in zip(candidate, reference):  # calculate the BLEU score for all items in the batch
+        cand = [lang.decode_caption(cand).split()]
+        ref_list = [[lang.decode_caption(ann).split() for ann in ref_list]]
+        score = bleu_score(cand, ref_list, max_n=max_n, weights=[1 / max_n for _ in range(max_n)])
+        scores.append(score * 100)
     
-    score = bleu_score(candidate, reference, max_n=max_n, weights=[1 / max_n for _ in range(max_n)])
-    scores.append(score * 100)
-    
-    # logging
-#     blue_mean = np.mean(scores)
-#     logger.info(f"Mean BLEU score: {blue_mean:.2f}")
-    
-    return np.array(scores)
+    return scores
