@@ -1,0 +1,663 @@
+# This file contains hyperparameters for all the different experiments we want
+# to run. This makes it easier to keep track of all the settings across
+# different experiments. Note that experiments are seperated by triple dots
+# (---).
+
+#current experiments include: for each of the five encoders, we use three different optimizers, with three different learning rates
+#Thus, 5 * 3 * 3 = 45 different experiments 
+path_to_save: ./experiments/resnet50/adam/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/resnet50/rmsprop/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/resnet50/adam/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/resnet50/rmsprop/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/resnet50/adam/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/resnet50/rmsprop/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: rmsprop
+
+---
+
+path_to_save: ./experiments/resnet50/sgd/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: sgd
+
+---
+path_to_save: ./experiments/resnet50/sgd/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: sgd
+
+--- 
+
+path_to_save: ./experiments/resnet50/sgd/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: resnet50
+  optimizer: sgd
+
+--- 
+path_to_save: ./experiments/mobilenet/adam/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: mobilenet
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/mobilenet/rmsprop/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: mobilenet
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/mobilenet/adam/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: mobilenet
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/mobilenet/rmsprop/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: mobilenet
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/mobilenet/adam/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: mobilenet
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/mobilenet/rmsprop/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: mobilenet
+  optimizer: rmsprop
+
+---
+
+path_to_save: ./experiments/mobilenet/sgd/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: mobilenet
+  optimizer: sgd
+
+---
+path_to_save: ./experiments/mobilenet/sgd/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: mobilenet
+  optimizer: sgd
+
+--- 
+
+path_to_save: ./experiments/mobilenet/sgd/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: mobilenet
+  optimizer: sgd
+
+--- 
+path_to_save: ./experiments/vggnet/adam/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: vggnet
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/vggnet/rmsprop/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: vggnet
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/vggnet/adam/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: vggnet
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/vggnet/rmsprop/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: vggnet
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/vggnet/adam/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: vggnet
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/vggnet/rmsprop/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: vggnet
+  optimizer: rmsprop
+
+---
+
+path_to_save: ./experiments/vggnet/sgd/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: vggnet
+  optimizer: sgd
+
+---
+path_to_save: ./experiments/vggnet/sgd/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: vggnet
+  optimizer: sgd
+
+--- 
+
+path_to_save: ./experiments/vggnet/sgd/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: vggnet
+  optimizer: sgd
+
+--- 
+
+path_to_save: ./experiments/densenet/adam/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: densenet
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/densenet/rmsprop/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: densenet
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/densenet/adam/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: densenet
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/densenet/rmsprop/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: densenet
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/densenet/adam/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: densenet
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/densenet/rmsprop/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: densenet
+  optimizer: rmsprop
+
+---
+
+path_to_save: ./experiments/densenet/sgd/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: densenet
+  optimizer: sgd
+
+---
+path_to_save: ./experiments/densenet/sgd/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: densenet
+  optimizer: sgd
+
+--- 
+
+path_to_save: ./experiments/densenet/sgd/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: densenet
+  optimizer: sgd
+
+--- 
+path_to_save: ./experiments/inception/adam/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: inception
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/inception/rmsprop/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: inception
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/inception/adam/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: inception
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/inception/rmsprop/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: inception
+  optimizer: rmsprop
+
+---
+path_to_save: ./experiments/inception/adam/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: inception
+  optimizer: adam
+
+--- 
+
+path_to_save: ./experiments/inception/rmsprop/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: inception
+  optimizer: rmsprop
+
+---
+
+path_to_save: ./experiments/inception/sgd/lr0.001
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.001
+  epochs: 200
+  
+  encoder: inception
+  optimizer: sgd
+
+---
+path_to_save: ./experiments/inception/sgd/lr0.01
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.01
+  epochs: 200
+  
+  encoder: inception
+  optimizer: sgd
+
+--- 
+
+path_to_save: ./experiments/inception/sgd/lr0.1
+
+parameters:
+  num_hidden: 512
+  embedding_dim: 512
+  batch_size: 64
+  num_layers: 2
+  lr: 0.1
+  epochs: 200
+  
+  encoder: inception
+  optimizer: sgd
+
+--- 

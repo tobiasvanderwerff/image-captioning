@@ -20,7 +20,7 @@ from src.caption_utils import preprocess_tokens
 from src.trainer import Trainer, TrainerConfig
 from src.utils import set_seed, train_collate_fn, eval_collate_fn, make_predictions
 from src.metrics import calculate_bleu_score
-from src.models import EncoderDecoder, LSTMDecoder, ResNetEncoder
+from src.models import EncoderDecoder, LSTMDecoder, ResNetEncoder, get_encoder_DenseNet, get_encoder_Inception, get_encoder_MobileNet, get_encoder_VGGnet
 
 
 def main(*args):
@@ -43,7 +43,7 @@ def main(*args):
         encoder_name = params['encoder']
     
         assert optimizer_name.lower() in ['adam', 'rmsprop', 'sgd']
-        assert encoder_name.lower() in ['resnet34', 'resnet50']  # TODO: add more encoders here
+        assert encoder_name.lower() in ['resnet34', 'resnet50', 'vggnet', 'mobilenet', 'inception', 'densenet']  # TODO: add more encoders here
         
         save_path = Path(save_folder)
         cp_path = save_path / 'checkpoints'
@@ -114,9 +114,18 @@ def main(*args):
                                 save_path/'Flickr_8k.devImages.txt', 'eval', trnsf=trnsf['eval'])
 
         if encoder_name == 'resnet50':
-            encoder = ResNet50Encoder(num_hidden)
-        else:
-            encoder = ResNet50Encoder(num_hidden)  # TODO: allow for other encoders
+            encoder = ResNetEncoder(num_hidden)
+        elif encoder_name == 'vggnet':
+            encoder = get_encoder_VGGnet(num_hidden)
+		elif encoder_name == 'mobilenet':
+			encoder = get_encoder_MobileNet(num_hidden)
+		elif encoder_name == 'inception':
+			encoder = get_encoder_Inception(num_hidden)
+		elif encoder_name == 'densenet':
+			encoder = get_encoder_DenseNet(num_hidden)
+			
+		'vggnet', 'mobilenet', 'inception', 'densenet'	
+			
             
         decoder = LSTMDecoder(num_hidden, embedding_dim, vocab_size, num_layers)
         encoder, decoder = encoder.to(device), decoder.to(device)
