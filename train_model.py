@@ -113,20 +113,17 @@ def main(*args):
         ds_eval = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
                                 save_path/'Flickr_8k.devImages.txt', 'eval', trnsf=trnsf['eval'])
 
-        if encoder_name == 'resnet50':
+        if encoder_name.lower() == 'resnet50':
             encoder = ResNetEncoder(num_hidden)
-        elif encoder_name == 'vggnet':
+        elif encoder_name.lower() == 'vggnet':
             encoder = get_encoder_VGGnet(num_hidden)
-		elif encoder_name == 'mobilenet':
-			encoder = get_encoder_MobileNet(num_hidden)
-		elif encoder_name == 'inception':
-			encoder = get_encoder_Inception(num_hidden)
-		elif encoder_name == 'densenet':
-			encoder = get_encoder_DenseNet(num_hidden)
-			
-		'vggnet', 'mobilenet', 'inception', 'densenet'	
-			
-            
+        elif encoder_name.lower() == 'mobilenet':
+            encoder = get_encoder_MobileNet(num_hidden)
+        elif encoder_name.lower() == 'inception':
+            encoder = get_encoder_Inception(num_hidden)
+        elif encoder_name.lower() == 'densenet':
+            encoder = get_encoder_DenseNet(num_hidden)
+
         decoder = LSTMDecoder(num_hidden, embedding_dim, vocab_size, num_layers)
         encoder, decoder = encoder.to(device), decoder.to(device)
 
