@@ -84,7 +84,7 @@ class LSTMDecoder(nn.Module):
         self.emb = nn.Embedding(vocab_size, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, num_hidden, num_layers, batch_first=True, bidirectional=bidirectional)
         self.fc = nn.Linear(num_hidden, vocab_size)
-        self.drop = nn.Dropout(p=0.1)
+        self.drop = nn.Dropout(p=0.5)
     
     def forward(self, captions, img_features, seq_lengths):
         embs = self.emb(captions)  # (batch, seq_len) -> (batch, seq_len, embedding_dim) 
@@ -117,45 +117,81 @@ class ResNetEncoder(nn.Module):
         features = self.bn(features)
         return features
         
-def get_encoder_MobileNet(num_hidden):
-    """Returns a pretrained MobileNet_v2 encoder"""
-    encoder = models.mobilenet_v2(pretrained=True)
-    layer = encoder.classifier[1]
-    in_features = layer.in_features
-    encoder.classifier[1] = nn.Linear(in_features, num_hidden)
-    for p in encoder.parameters():
-        p.requires_grad = False
-    encoder.classifier[1].weight.requires_grad = True   
-    return encoder
+class MobileNetEncoder(nn.Module):
+    """ Pretrained MobileNet v2 image encoder """
 
-def get_encoder_VGGnet(num_hidden):
-    """Returns a pretrained VGG16 encoder"""
-    encoder = models.vgg16(pretrained=True)
-    layer = encoder.classifier[6]
-    in_features = layer.in_features
-    encoder.classifier[6] = nn.Linear(in_features, num_hidden)
-    for p in encoder.parameters():
-        p.requires_grad = False
-    encoder.classifier[6].weight.requires_grad = True   
-    return encoder
+    def __init__(self, num_hidden):
+        super().__init__()
+        self.encoder = models.mobilenet_v2(pretrained=True)
+        layer = self.encoder.classifier[1]
+        in_features = layer.in_features
+        
+        self.encoder.classifier[1] = nn.Linear(in_features, num_hidden, bias=False)
+        self.bn = nn.BatchNorm1d(num_hidden)
     
-def get_encoder_DenseNet(num_hidden):
-    """Returns a pretrained DenseNet encoder"""
-    encoder = models.densenet161(pretrained=True)
-    in_features = encoder.classifier.in_features
-    encoder.classifier = nn.Linear(in_features, num_hidden)
-    for p in encoder.parameters():
-        p.requires_grad = False
-    encoder.classifier.weight.requires_grad = True   
-    return encoder   
+    def forward(self, imgs):
+        with torch.no_grad(): 
+            features = self.resnet(imgs)
+        features = features.reshape(features.size(0), -1)
+        features = self.classifier[1](features)
+        features = self.bn(features)
+        return features
 
-def get_encoder_Inception(num_hidden):
-    """Returns a pretrained Inception encoder"""
-    encoder = models.inception_v3(pretrained=True)
-    print(encoder)
-    in_features = encoder.fc.in_features
-    encoder.fc = nn.Linear(in_features, num_hidden)
-    for p in encoder.parameters():
-        p.requires_grad = False
-    encoder.fc.weight.requires_grad = True   
-    return encoder  	
+class VGGNetEncoder(nn.Module):
+    """ Pretrained VGG16 image encoder """
+
+    def __init__(self, num_hidden):
+        super().__init__()
+        self.encoder = models.vgg16(pretrained=True)
+        layer = self.encoder.classifier[6]
+        in_features = layer.in_features
+        
+        self.encoder.classifier[6] = nn.Linear(in_features, num_hidden, bias=False)
+        self.bn = nn.BatchNorm1d(num_hidden)
+    
+    def forward(self, imgs):
+        with torch.no_grad(): 
+            features = self.resnet(imgs)
+        features = features.reshape(features.size(0), -1)
+        features = self.classifier[6](features)
+        features = self.bn(features)
+        return features
+    
+class DenseNetEncoder(nn.Module):
+    """ Pretrained DenseNet161 image encoder """
+
+    def __init__(self, num_hidden):
+        super().__init__()
+        self.encoder = models.densenet161(pretrained=True)
+        in_features = self.encoder.classifier.in_features
+        
+        self.encoder.classifier = nn.Linear(in_features, num_hidden, bias=False)
+        self.bn = nn.BatchNorm1d(num_hidden)
+    
+    def forward(self, imgs):
+        with torch.no_grad(): 
+            features = self.resnet(imgs)
+        features = features.reshape(features.size(0), -1)
+        features = self.classifier(features)
+        features = self.bn(features)
+        return features  
+
+class InceptionEncoder(nn.Module):
+    """ Pretrained Inception v3 image encoder """
+
+    def __init__(self, num_hidden):
+        super().__init__()
+        self.encoder = models.inception_v3(pretrained=True)
+        in_features = self.encoder.fc.in_features
+        
+        self.encoder.fc = nn.Linear(in_features, num_hidden, bias=False)
+        self.bn = nn.BatchNorm1d(num_hidden)
+    
+    def forward(self, imgs):
+        with torch.no_grad(): 
+            features = self.resnet(imgs)
+        features = features.reshape(features.size(0), -1)
+        features = self.fc(features)
+        features = self.bn(features)
+        return features  	
+
