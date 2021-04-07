@@ -123,7 +123,7 @@ class LSTMDecoder(nn.Module):
                 lstm_in = captions[:, t]
             else: 
                 if sampled_ids == []:
-                    lstm_in = torch.full([batch_size], self.start_token_idx)
+                    lstm_in = torch.full([batch_size], self.start_token_idx).to(self.device)
                 else:
                     lstm_in = sample
             word_emb = self.emb(lstm_in)
