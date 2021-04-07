@@ -127,16 +127,15 @@ class LSTMDecoder(nn.Module):
                 else:
                     lstm_in = sample
             word_emb = self.emb(lstm_in)
-            hiddens, hc = self.lstm(word_emb.unsqueeze(1), hc)
-            hiddens.squeeze_(1)  # hiddens: (batch_size, num_hidden)
+            hiddens, hc = self.lstm(word_emb.unsqueeze(1), hc)  # hiddens: (batch_size, 1, num_hidden)
 
             # Attention 
-            attn_in = torch.cat([feature_map, hiddens.unsqueeze(1).repeat(1, n_annotations, 1)], 2)
+            attn_in = torch.cat([feature_map, hiddens.repeat(1, n_annotations, 1)], 2)
             attn_out = self.attn(attn_in).squeeze(-1)  # (batch_size, n_annotations)
             attn_weights = F.softmax(attn_out, dim=-1)
          
             ctx = torch.sum(attn_weights.unsqueeze(-1) * feature_map, dim=1, keepdim=False)
-            logits = self.fc_clsf(word_emb + self.fc_h(hiddens) + self.fc_ctx(ctx)) 
+            logits = self.fc_clsf(word_emb + self.fc_h(hiddens.squeeze(1)) + self.fc_ctx(ctx)) 
 
             _, sample = logits.max(-1)
             sampled_ids.append(sample)
