@@ -128,8 +128,8 @@ def main(args):
         elif encoder_name.lower() == 'densenet':
             encoder = get_encoder_DenseNet(num_hidden)
 
-        decoder = LSTMDecoder(num_hidden, embedding_dim, vocab_size, num_layers)
-        encoder, decoder = encoder.to(device), decoder.to(device)
+        decoder = LSTMDecoder(num_hidden, embedding_dim, vocab_size, encoder.annotation_dim,
+                              lang.word2idx['<START>'], device, num_layers=num_layers)
 
         model = EncoderDecoder(encoder, decoder, device)
         model = model.to(device);
