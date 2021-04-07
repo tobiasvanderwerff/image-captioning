@@ -4,8 +4,6 @@ The main idea is:
 - calculate image features using CNN encoder
 - feed calculated image features into the initial state of an LSTM language model, which makes 
   use of an attention mechanism in order to generate a caption for the image.
-  
-  TODO: REMOVE HOOK at the right spot
 """
 
 import logging
@@ -47,85 +45,36 @@ class EncoderDecoder(nn.Module):
         self.device = device
         self.max_seq_len = max_seq_len
 
-        self.mlp1 = MLP(decoder.num_hidden)
-        self.mlp2 = MLP(decoder.num_hidden)
-        
         logger.info(f"Number of trainable parameters: {count_parameters(self)}")  # TODO: this is not right for the encoder
         
     def forward(self, imgs, split, captions=None, seq_lengths=None, metrics_callback_fn=None):
-        # This follows the implementation in the 2015 paper 'Show and Tell' by Vinyals et al. We feed the image
-        # through the encoder, after which the LSTM is initialized by running the image features through the LSTM
-        # and using the consequent hidden and cell state to run the LSTM for generating words.
-        
         if type(split) == list or type(split) == tuple:
             split = split[0] # TODO: fix this?
         assert split in ['train', 'eval', 'test']
         
-        batch, *_ = imgs.shape
         loss, sampled_ids, scores = None, None, None
+        # TODO: is split redundant and can the same information be obtained by looking at captions variable?
         max_seq_len = self.max_seq_len if split == 'test' else captions.size(1)
         
-        
-        img_features = self.encoder(imgs)
-        intermediate_layer1 = self.encoder.intermediate
-        iml = intermediate_layer1.get('Convolution') 
-        iml = torch.flatten(iml, 2, -1) 
-        #[batch_size, num_hidden, featureMap_dir1, featureMap_dir2] -> [batch_size, num_hidden, featureMap_dir1 *featureMap_dir2]
-
-        # Taking the average across the encoder hidden states
-        # Pass this to 2 different MLPs used to initialise 
-        # the hidden state h0 and cell state c0 of the LSTM decoder
-
-        mlp_input = torch.mean(iml, dim=-1)
-        h0 = self.mlp1(mlp_input)
-        c0 = self.mlp2(mlp_input)
+        feature_map, h0, c0 = self.encoder(imgs)
         h0, c0 = self.init_decoder_cell_state_and_hidden_state(h0, c0)
 
+        if captions is not None: 
+            targets = captions[:, 1:]  # the model skips the <START> token when making predictions
+            
         if split == 'train':
-            all_logits = self.decoder(captions, iml, seq_lengths.cpu(), h0, c0)
-            loss = F.cross_entropy(all_logits.transpose(2, 1), captions, ignore_index=0)
-        if split == 'eval' or split == 'test':
-            all_logits, sampled_ids = [], []
-            hiddens = [h0, c0]
-            lstm_in = img_features.unsqueeze(1)
-            for t in range(max_seq_len):
-                lstm_out, hiddens = self.decoder.lstm(lstm_in, hiddens)
-
-                # Attention ---------------------------------------------------------
-                batch, seq_len, hidden_len = output.shape
-                img_features = torch.transpose(img_features, 1, -1)
-                n_annotations = img_features.size(1)
-                attn_in = torch.zeros(batch, seq_len, n_annotations, self.num_hidden * 2).to(self.device)
-
-                for b in range(batch):
-                    for t in range(seq_len):
-                        h = output[b, t]
-                        # iterate over all annotation vectors
-                        for k, ann in enumerate(img_features[b]):
-                            #import pdb; pdb.set_trace()
-                            attn_in[b, t, k, :] = torch.cat((ann, h))
-                    
-                attn_out = self.decoder.attn(attn_in).squeeze(-1)
-                attn_weights = F.softmax(attn_out, dim=-1)
-                img_features = img_features.unsqueeze(1)
-                img_features = img_features.repeat(1, seq_len, 1, 1) 
-     
-                cs = torch.sum(attn_weights.unsqueeze(-1) * img_features, dim=2, keepdim=False)
-                # -----------------------------------------------------------------------
-                
-                logits = self.decoder.fc(torch.cat((lstm_out, cs), dim=2))
-                _, sample = logits.max(-1)
-                lstm_in = self.decoder.emb(sample)
-                sampled_ids.append(sample.squeeze(1))
-                all_logits.append(logits)
-
-            sampled_ids = torch.stack(sampled_ids, 1)
-            all_logits = torch.cat(all_logits, 1)
+            # all_logits = self.decoder(captions, feature_map, seq_lengths.cpu(), h0, c0)
+            all_logits, sampled_ids = self.decoder(feature_map, h0, c0,
+                                                   max_seq_len, captions=captions,
+                                                   use_teacher_forcing=True)
+            loss = F.cross_entropy(all_logits.transpose(2, 1), targets, ignore_index=0)
+        elif split == 'eval' or split == 'test':
+            all_logits, sampled_ids = self.decoder(feature_map, h0, c0, max_seq_len)
             if captions is not None:
                 scores = {}
                 for n in range(1, 5):
                     # calculate BLEU scores
-                    bleu_score = metrics_callback_fn(sampled_ids, captions, max_n=n)
+                    bleu_score = metrics_callback_fn(sampled_ids, targets, max_n=n)
                     scores.update({f'BLEU-{n}': bleu_score})
         return all_logits, loss, scores, sampled_ids
     
@@ -138,56 +87,64 @@ class EncoderDecoder(nn.Module):
         h0 = h0.repeat(self.decoder.num_layers * self.decoder.num_directions, 1, 1)
         c0 = c0.to(self.device)
         h0 = h0.to(self.device)
-
         return h0, c0
     
 
 class LSTMDecoder(nn.Module):
-    def __init__(self, num_hidden, embedding_dim, vocab_size, device, num_layers=2, bidirectional=False):
+    def __init__(self, num_hidden, embedding_dim, vocab_size, annotation_dim, 
+                 start_token_idx, device, num_layers=2, bidirectional=False):
         super().__init__()
         self.num_hidden = num_hidden
         self.embedding_dim = embedding_dim
         self.vocab_size = vocab_size
         self.num_layers = num_layers
+        self.annotation_dim = annotation_dim
+        self.start_token_idx = start_token_idx
         self.num_directions = 2 if bidirectional else 1
         self.device = device
         
         self.emb = nn.Embedding(vocab_size, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, num_hidden, num_layers, batch_first=True, bidirectional=bidirectional)
-        self.attn = nn.Linear(self.num_hidden * 2, 1) 
-        self.fc = nn.Linear(self.num_hidden * 2, vocab_size)
-        #self.drop = nn.Dropout(p=0.5)
+        self.attn = nn.Linear(num_hidden + annotation_dim, 1)  # TODO: make this an MLP?
+        self.fc_h = nn.Linear(num_hidden, embedding_dim)
+        self.fc_ctx = nn.Linear(annotation_dim, embedding_dim)
+        self.fc_clsf = nn.Linear(embedding_dim, vocab_size)
+        # self.drop = nn.Dropout(p=0.1)
     
-    def forward(self, captions, img_features, seq_lengths, h0, c0):      
-        emb = self.emb(captions)  # (batch, seq_len) -> (batch, seq_len, embedding_dim)
-        emb = torch.nn.utils.rnn.pack_padded_sequence(emb, seq_lengths - 1, batch_first=True)
-        
-        output, _ = self.lstm(emb, (h0, c0))
-        output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
+    def forward(self, feature_map, h0, c0, max_seq_len, captions=None, use_teacher_forcing=False):
+        assert ((captions is None and not use_teacher_forcing) or 
+                (captions is not None and use_teacher_forcing))
+        all_logits, sampled_ids = [], []
+        batch_size, n_annotations, _ = feature_map.shape
 
-        # Attention ----------------------------------------------------------
-        
-        batch, seq_len, hidden_len = output.shape
-        img_features = torch.transpose(img_features, 1, -1)
-        n_annotations = img_features.size(1)
-        attn_in = torch.zeros(batch, seq_len, n_annotations, self.num_hidden * 2).to(self.device)
-        
-        for b in range(batch):
-            for t in range(seq_len):
-                h = output[b, t]
-                # iterate over all annotation vectors
-                for k, ann in enumerate(img_features[b]):
-                    attn_in[b, t, k, :] = torch.cat((ann, h))
-                    
-        attn_out = self.attn(attn_in).squeeze(-1)
-        attn_weights = F.softmax(attn_out, dim=-1)
-        img_features = img_features.unsqueeze(1)
-        img_features = img_features.repeat(1, seq_len, 1, 1) 
-     
-        cs = torch.sum(attn_weights.unsqueeze(-1) * img_features, dim=2, keepdim=False)
-        logits = self.fc(torch.cat((output, cs), dim=2))  
-        
-        return logits
+        hc = (h0, c0)
+        for t in range(max_seq_len - 1):
+            if use_teacher_forcing:
+                lstm_in = captions[:, t]
+            else: 
+                if sampled_ids == []:
+                    lstm_in = torch.full([batch_size], self.start_token_idx)
+                else:
+                    lstm_in = sample
+            word_emb = self.emb(lstm_in)
+            hiddens, hc = self.lstm(word_emb.unsqueeze(1), hc)
+            hiddens.squeeze_(1)  # hiddens: (batch_size, num_hidden)
+
+            # Attention 
+            attn_in = torch.cat([feature_map, hiddens.unsqueeze(1).repeat(1, n_annotations, 1)], 2)
+            attn_out = self.attn(attn_in).squeeze(-1)  # (batch_size, n_annotations)
+            attn_weights = F.softmax(attn_out, dim=-1)
+         
+            ctx = torch.sum(attn_weights.unsqueeze(-1) * feature_map, dim=1, keepdim=False)
+            logits = self.fc_clsf(word_emb + self.fc_h(hiddens) + self.fc_ctx(ctx)) 
+
+            _, sample = logits.max(-1)
+            sampled_ids.append(sample)
+            all_logits.append(logits)
+        sampled_ids = torch.stack(sampled_ids, 1)
+        all_logits = torch.stack(all_logits, 1)
+
+        return all_logits, sampled_ids
 
 
 class ResNetEncoder(nn.Module):
@@ -195,98 +152,21 @@ class ResNetEncoder(nn.Module):
     
     def __init__(self, num_hidden):
         super().__init__()
-        self.intermediate = {}  # Activation(s) of intermediate layers
-        # Pre-trainer Resnet50
-        self.pretrained = models.resnet50(pretrained=True)
-        for p in self.pretrained.parameters():  # freeze the weights
-            p.requires_grad = False
-        # Attaching a hook to one of the last convoloutional layers
-        self.pretrained.layer4[2].conv2.register_forward_hook(self.forward_hook('Convolution'))
+        resnet = models.resnet50(pretrained=True) 
+        modules = list(resnet.children())
+        self.annotation_dim = modules[-1].in_features
         
-    def forward_hook(self,layer_name):
-        def hook(module, input, output):
-            self.intermediate.update({layer_name: output})
-        return hook
+        # TODO: perhaps change fc_init_h and fc_init_c to multi-layer MLPs
+        self.resnet = nn.Sequential(*modules[:-2])
+        self.fc_init_h = nn.Linear(self.annotation_dim, num_hidden, bias=False)
+        self.fc_init_c = nn.Linear(self.annotation_dim, num_hidden, bias=False)
+        self.bn1 = nn.BatchNorm1d(num_hidden)
+        self.bn2 = nn.BatchNorm1d(num_hidden)
     
     def forward(self, imgs):
-        out = self.pretrained(imgs)
-        return out
-        
-class MobileNetEncoder(nn.Module):
-    """ Pretrained MobileNet v2 image encoder """
-
-    def __init__(self, num_hidden):
-        super().__init__()
-        self.encoder = models.mobilenet_v2(pretrained=True)
-        layer = self.encoder.classifier[1]
-        in_features = layer.in_features
-        
-        self.encoder.classifier[1] = nn.Linear(in_features, num_hidden, bias=False)
-        self.bn = nn.BatchNorm1d(num_hidden)
-    
-    def forward(self, imgs):
-        with torch.no_grad(): 
-            features = self.resnet(imgs)
-        features = features.reshape(features.size(0), -1)
-        features = self.classifier[1](features)
-        features = self.bn(features)
-        return features
-
-class VGGNetEncoder(nn.Module):
-    """ Pretrained VGG16 image encoder """
-
-    def __init__(self, num_hidden):
-        super().__init__()
-        self.encoder = models.vgg16(pretrained=True)
-        layer = self.encoder.classifier[6]
-        in_features = layer.in_features
-        
-        self.encoder.classifier[6] = nn.Linear(in_features, num_hidden, bias=False)
-        self.bn = nn.BatchNorm1d(num_hidden)
-    
-    def forward(self, imgs):
-        with torch.no_grad(): 
-            features = self.resnet(imgs)
-        features = features.reshape(features.size(0), -1)
-        features = self.classifier[6](features)
-        features = self.bn(features)
-        return features
-    
-class DenseNetEncoder(nn.Module):
-    """ Pretrained DenseNet161 image encoder """
-
-    def __init__(self, num_hidden):
-        super().__init__()
-        self.encoder = models.densenet161(pretrained=True)
-        in_features = self.encoder.classifier.in_features
-        
-        self.encoder.classifier = nn.Linear(in_features, num_hidden, bias=False)
-        self.bn = nn.BatchNorm1d(num_hidden)
-    
-    def forward(self, imgs):
-        with torch.no_grad(): 
-            features = self.resnet(imgs)
-        features = features.reshape(features.size(0), -1)
-        features = self.classifier(features)
-        features = self.bn(features)
-        return features  
-
-class InceptionEncoder(nn.Module):
-    """ Pretrained Inception v3 image encoder """
-
-    def __init__(self, num_hidden):
-        super().__init__()
-        self.encoder = models.inception_v3(pretrained=True)
-        in_features = self.encoder.fc.in_features
-        
-        self.encoder.fc = nn.Linear(in_features, num_hidden, bias=False)
-        self.bn = nn.BatchNorm1d(num_hidden)
-    
-    def forward(self, imgs):
-        with torch.no_grad(): 
-            features = self.resnet(imgs)
-        features = features.reshape(features.size(0), -1)
-        features = self.fc(features)
-        features = self.bn(features)
-        return features  	
-
+        with torch.no_grad():  # do not keep track of resnet gradients, because we want to freeze those weights
+            feature_map = self.resnet(imgs).flatten(2, -1).transpose(1, 2)  # feature_map: (batch, 16, 2048)
+        mlp_input = feature_map.mean(1)
+        h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, 512)
+        c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, 512)
+        return feature_map, h0, c0 
