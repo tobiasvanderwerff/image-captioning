@@ -20,7 +20,9 @@ from src.caption_utils import preprocess_tokens
 from src.trainer import Trainer, TrainerConfig
 from src.utils import set_seed, train_collate_fn, eval_collate_fn, make_predictions
 from src.metrics import calculate_bleu_score
-from src.models import EncoderDecoder, LSTMDecoder, ResNetEncoder, get_encoder_DenseNet, get_encoder_Inception, get_encoder_MobileNet, get_encoder_VGGnet
+# from src.models import EncoderDecoder, LSTMDecoder, ResNetEncoder, get_encoder_DenseNet, get_encoder_Inception, get_encoder_MobileNet, get_encoder_VGGnet
+from src.models import EncoderDecoder, EncoderDecoder, LSTMDecoder, ResNet34Encoder, ResNet50Encoder
+
 
 
 def main(args):
@@ -76,6 +78,8 @@ def main(args):
                              root_path/'Flickr_8k.trainImages.txt', 'train', trnsf=trnsf['train'])
     ds_eval = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
                             root_path/'Flickr_8k.devImages.txt', 'eval', trnsf=trnsf['eval'])
+    ds_test = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
+                            root_path/'Flickr_8k.testImages.txt', 'test', trnsf=trnsf['eval'])
 
     # Load hyperparameters from a configuration file
     f = open('hyperparams.yaml', 'r')
@@ -117,8 +121,10 @@ def main(args):
         logger.info(f'Saving logs in {root_path / save_folder}/train.log')
         logger.info(f'Saving checkpoints in {cp_path}')
 
+        if encoder_name.lower() == 'resnet34':
+            encoder = ResNet34Encoder(num_hidden)
         if encoder_name.lower() == 'resnet50':
-            encoder = ResNetEncoder(num_hidden)
+            encoder = ResNet50Encoder(num_hidden)
         elif encoder_name.lower() == 'vggnet':
             encoder = get_encoder_VGGnet(num_hidden)
         elif encoder_name.lower() == 'mobilenet':
@@ -149,8 +155,9 @@ def main(args):
 #         trainer = Trainer(config, model, optimizer, ds_train_mini, ds_eval_mini,
 #                           train_collate_fn=train_collate_fn, eval_collate_fn=eval_collate_fn,
 #                           metrics_callback_fn=partial(calculate_bleu_score, lang=lang))
-        trainer = Trainer(config, model, optimizer, ds_train, ds_eval, train_collate_fn,
-                          eval_collate_fn, metrics_callback_fn=partial(calculate_bleu_score, lang=lang))
+        trainer = Trainer(config, model, optimizer, ds_train, eval_ds=ds_eval, test_ds=ds_test, 
+                          train_collate_fn=train_collate_fn, eval_collate_fn=eval_collate_fn, 
+                          metrics_callback_fn=partial(calculate_bleu_score, lang=lang))
         
         logger.info("Training the model...")
         

@@ -32,7 +32,7 @@ class TrainerConfig:
             setattr(self, k, v)
     
 class Trainer:
-    def __init__(self, config, model, optimizer, train_ds, eval_ds=None, train_collate_fn=None,
+    def __init__(self, config, model, optimizer, train_ds, eval_ds=None, test_ds=None, train_collate_fn=None,
                  eval_collate_fn = None, evaluation_callback_fn=None, metrics_callback_fn=None, 
                  max_epochs_no_change=10):
         self.config = config
@@ -40,6 +40,7 @@ class Trainer:
         self.optimizer = optimizer
         self.train_ds = train_ds
         self.eval_ds = eval_ds
+        self.test_ds = test_ds
         self.train_collate_fn = train_collate_fn
         self.eval_collate_fn = eval_collate_fn
         self.evaluation_callback_fn = evaluation_callback_fn
@@ -48,6 +49,7 @@ class Trainer:
         
         self.grad_norms = []    
         self.best_score = float('-inf')
+        self.best_state_dict = None
         self.epoch = 0
         self.epochs_no_change = 0
         self.losses = {'train': [], 'eval': [], 'test': []}
@@ -76,11 +78,22 @@ class Trainer:
             evalloader = DataLoader(self.eval_ds, 2*config.batch_size, shuffle=False,  # double the batch size since evaluation takes less memory
                                     num_workers=config.num_workers, pin_memory=True,
                                     collate_fn=self.eval_collate_fn)
+        if self.test_ds is not None:
+            testloader = DataLoader(self.test_ds, 2*config.batch_size, shuffle=False,  # double the batch size since evaluation takes less memory
+                                    num_workers=config.num_workers, pin_memory=True,
+                                    collate_fn=self.eval_collate_fn)
+            
     
         def run_epoch(split):
             is_train = True if split == 'train' else False
-            dataloader = trainloader if split == 'train' else evalloader
             losses, scores = [], {}
+            
+            if split == 'train':
+                dataloader = trainloader
+            elif split == 'eval':
+                dataloader = evalloader
+            else:
+                dataloader = testloader
             
             pbar = tqdm(dataloader, total=len(dataloader)) if is_train else dataloader
             for data in pbar:
@@ -88,8 +101,6 @@ class Trainer:
 
                 # put data on the appropriate device (cpu or gpu)
                 data = [el.to(self.device) if hasattr(el, 'device') else el for el in data]  
-
-                optimizer.zero_grad()  # set the gradients to zero
 
                 if self.metrics_callback_fn is not None:
                     data.append(self.metrics_callback_fn)
@@ -114,6 +125,7 @@ class Trainer:
                         self._track_grad_norm()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)  # clip gradients to avoid exploding gradients
                     optimizer.step()  # update weights
+                    optimizer.zero_grad()  # set the gradients back to zero
             info_str = ""
             if loss is not None:
                 epoch_loss = np.mean(losses)
@@ -126,6 +138,7 @@ class Trainer:
                 if epoch_score > self.best_score:
                     logger.info(f"New best score: {epoch_score:1f}")
                     self.best_score = epoch_score
+                    self.best_state_dict = model.state_dict()
                     self.epochs_no_change = 0
                     if self.config.checkpoint_path is not None:  # save the new best model
                         logger.info("Saving checkpoint.")
@@ -144,6 +157,12 @@ class Trainer:
                     run_epoch('eval')
                     if self.evaluation_callback_fn is not None:  # this can be used to show intermediate predictions of the model
                         self.evaluation_callback_fn(model, self.eval_ds)
-            if self.epochs_no_change >= self.max_epochs_no_change:  # stop early
+#             if self.epochs_no_change >= self.max_epochs_no_change:  # stop early
+            if self.epochs_no_change >= 1:  # stop early
                 logger.info(f"Stopped early at epoch {ep}. Best score: {self.best_score}")
+                if self.test_ds is not None:
+                    logger.info("Calculating results on test set...")
+                    model.load_state_dict(self.best_state_dict)
+                    with torch.no_grad():
+                        run_epoch('test')
                 break

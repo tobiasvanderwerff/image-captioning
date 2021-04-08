@@ -168,7 +168,7 @@ class LSTMDecoder(nn.Module):
         return all_logits, sampled_ids
 
 
-class ResNetEncoder(nn.Module):
+class ResNet50Encoder(nn.Module):
     """ Pretrained resnet50 image encoder """
     
     def __init__(self, num_hidden):
@@ -188,22 +188,22 @@ class ResNetEncoder(nn.Module):
         with torch.no_grad():  # do not keep track of resnet gradients, because we want to freeze those weights
             feature_map = self.resnet(imgs).flatten(2, -1).transpose(1, 2)  # feature_map: (batch, 16, 2048)
         mlp_input = feature_map.mean(1)
-        h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, 512)
-        c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, 512)
+        h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, num_hidden)
+        c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, num_hidden)
         return feature_map, h0, c0 
     
     
-class ResNetEncoder2(nn.Module):
+class ResNet34Encoder(nn.Module):
     """ Pretrained resnet34 image encoder """
     
     def __init__(self, num_hidden):
         super().__init__()
         resnet = models.resnet34(pretrained=True) 
-        modules = list(resnet.children())
-        self.annotation_dim = modules[-1].in_features
+        modules = list(resnet.children())[:7]  # intermediate feature map: (-1, 256, 8, 8)
+        self.annotation_dim = 256  # TODO: annoying to get this from the model, but hardcoding is also not ideal
         
         # TODO: perhaps change fc_init_h and fc_init_c to multi-layer MLPs
-        self.resnet = nn.Sequential(*modules[:-2])
+        self.resnet = nn.Sequential(*modules)
         self.fc_init_h = nn.Linear(self.annotation_dim, num_hidden, bias=False)
         self.fc_init_c = nn.Linear(self.annotation_dim, num_hidden, bias=False)
         self.bn1 = nn.BatchNorm1d(num_hidden)
@@ -214,9 +214,9 @@ class ResNetEncoder2(nn.Module):
     
     def forward(self, imgs):
         with torch.no_grad():  # do not keep track of resnet gradients, because we want to freeze those weights
-            feature_map = self.resnet(imgs).flatten(2, -1).transpose(1, 2)  # feature_map: (batch, 16, 2048)
+            feature_map = self.resnet(imgs).flatten(2, -1).transpose(1, 2)  # feature_map: (batch, 64, 256)
         mlp_input = feature_map.mean(1)
-        h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, 512)
-        c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, 512)
+        h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, num_hidden)
+        c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, num_hidden)
         return feature_map, h0, c0 
 
