@@ -167,56 +167,94 @@ class LSTMDecoder(nn.Module):
 
         return all_logits, sampled_ids
 
-
-class ResNet50Encoder(nn.Module):
-    """ Pretrained resnet50 image encoder """
+    
+class Encoder(nn.Module):
+    """ Base class of all the encoders. """
+    
+    def __init__(self, feature_extractor, annotation_dim, num_hidden):
+        super().__init__() 
+        self.features = feature_extractor
+        self.annotation_dim = annotation_dim
+        
+        # TODO: perhaps change fc_init_h and fc_init_c to multi-layer MLPs
+        self.fc_init_h = nn.Linear(annotation_dim, num_hidden, bias=False)
+        self.fc_init_c = nn.Linear(annotation_dim, num_hidden, bias=False)
+        self.bn1 = nn.BatchNorm1d(num_hidden)
+        self.bn2 = nn.BatchNorm1d(num_hidden)
+        
+        for p in self.features.parameters():
+            p.requires_grad = False  # freeze pretrained weights
+    
+    def forward(self, imgs):
+        with torch.no_grad():
+            feature_map = self.features(imgs).flatten(2, -1).transpose(1, 2)
+        mlp_input = feature_map.mean(1)
+        h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, num_hidden)
+        c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, num_hidden)
+        return feature_map, h0, c0 
+    
+         
+class ResNet34Encoder(Encoder):
+    """ Encoder with pretrained ResNet34 as feature extractor."""
     
     def __init__(self, num_hidden):
-        super().__init__()
+        resnet = models.resnet34(pretrained=True) 
+        modules = list(resnet.children())
+        annotation_dim = 256  # TODO: annoying to get this from the model, but hardcoding is also not ideal
+        feature_extractor = nn.Sequential(*modules[:7])   # intermediate feature map: (-1, 256, 8, 8)
+        super().__init__(feature_extractor, annotation_dim, num_hidden)
+
+    
+class ResNet50Encoder(Encoder):
+    """ Encoder with pretrained ResNet50 as feature extractor. """
+    
+    def __init__(self, num_hidden):
         resnet = models.resnet50(pretrained=True) 
         modules = list(resnet.children())
-        self.annotation_dim = modules[-1].in_features
-        
-        # TODO: perhaps change fc_init_h and fc_init_c to multi-layer MLPs
-        self.resnet = nn.Sequential(*modules[:-2])
-        self.fc_init_h = nn.Linear(self.annotation_dim, num_hidden, bias=False)
-        self.fc_init_c = nn.Linear(self.annotation_dim, num_hidden, bias=False)
-        self.bn1 = nn.BatchNorm1d(num_hidden)
-        self.bn2 = nn.BatchNorm1d(num_hidden)
+        annotation_dim = modules[-1].in_features
+        feature_extractor = nn.Sequential(*modules[:-2])    # intermediate feature map: (-1, 2048, 7, 7)
+        super().__init__(feature_extractor, annotation_dim, num_hidden)
+
     
-    def forward(self, imgs):
-        with torch.no_grad():  # do not keep track of resnet gradients, because we want to freeze those weights
-            feature_map = self.resnet(imgs).flatten(2, -1).transpose(1, 2)  # feature_map: (batch, 16, 2048)
-        mlp_input = feature_map.mean(1)
-        h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, num_hidden)
-        c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, num_hidden)
-        return feature_map, h0, c0 
-    
-    
-class ResNet34Encoder(nn.Module):
-    """ Pretrained resnet34 image encoder """
+class MobileNetEncoder(Encoder):
+    """ Encoder with pretrained MobileNet v2 as feature extractor. """
     
     def __init__(self, num_hidden):
-        super().__init__()
-        resnet = models.resnet34(pretrained=True) 
-        modules = list(resnet.children())[:7]  # intermediate feature map: (-1, 256, 8, 8)
-        self.annotation_dim = 256  # TODO: annoying to get this from the model, but hardcoding is also not ideal
-        
-        # TODO: perhaps change fc_init_h and fc_init_c to multi-layer MLPs
-        self.resnet = nn.Sequential(*modules)
-        self.fc_init_h = nn.Linear(self.annotation_dim, num_hidden, bias=False)
-        self.fc_init_c = nn.Linear(self.annotation_dim, num_hidden, bias=False)
-        self.bn1 = nn.BatchNorm1d(num_hidden)
-        self.bn2 = nn.BatchNorm1d(num_hidden)
-        
-        for p in self.resnet.parameters():
-            p.requires_grad = False
-    
-    def forward(self, imgs):
-        with torch.no_grad():  # do not keep track of resnet gradients, because we want to freeze those weights
-            feature_map = self.resnet(imgs).flatten(2, -1).transpose(1, 2)  # feature_map: (batch, 64, 256)
-        mlp_input = feature_map.mean(1)
-        h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, num_hidden)
-        c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, num_hidden)
-        return feature_map, h0, c0 
+        mobilenet = models.mobilenet_v2(pretrained=True) 
+        modules = list(mobilenet.features.children())
+        annotation_dim = modules[-1][1].num_features
+        feature_extractor = nn.Sequential(*mobilenet.features)  # intermediate feature map: (-1, 1280, 7, 7)
+        super().__init__(feature_extractor, annotation_dim, num_hidden) 
 
+    
+class VGGNetEncoder(Encoder):
+    """ Encoder with pretrained VGG16 as feature extractor. """
+    
+    def __init__(self, num_hidden):
+        vgg = models.vgg16(pretrained=True)
+        modules = list(vgg.features.children())
+        annotation_dim = modules[-3].out_channels
+        feature_extractor = nn.Sequential(*modules[:-1])  # intermediate feature map: (-1, 512, 14, 14)
+        super().__init__(feature_extractor, annotation_dim, num_hidden) 
+    
+    
+class DenseNetEncoder(Encoder):
+    """ Encoder with pretrained DenseNet161 as feature extractor. """
+
+    def __init__(self, num_hidden):
+        densenet = models.densenet161(pretrained=True)
+        modules = list(densenet.features.children())
+        annotation_dim = modules[-1].num_features
+        feature_extractor = nn.Sequential(*modules[:-1])  # intermediate feature map: (-1, 2208, 7, 7)
+        super().__init__(feature_extractor, annotation_dim, num_hidden) 
+            
+    
+class InceptionEncoder(Encoder):
+    """ Encoder with pretrained InceptionV3 as feature extractor."""
+    
+    def __init__(self, num_hidden):
+        inception = models.inception_v3(pretrained=True)
+        modules = list(inception.children())
+        annotation_dim =  modules[:-7][-1].branch_pool.bn.num_features
+        feature_extractor = nn.Sequential(*modules[:-7])  # intermediate feature map: (-1, 192, 12, 12)
+        super().__init__(feature_extractor, annotation_dim, num_hidden) 
