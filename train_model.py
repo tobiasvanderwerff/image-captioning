@@ -20,9 +20,7 @@ from src.caption_utils import preprocess_tokens
 from src.trainer import Trainer, TrainerConfig
 from src.utils import set_seed, train_collate_fn, eval_collate_fn, make_predictions
 from src.metrics import calculate_bleu_score
-# from src.models import EncoderDecoder, LSTMDecoder, ResNetEncoder, get_encoder_DenseNet, get_encoder_Inception, get_encoder_MobileNet, get_encoder_VGGnet
-from src.models import EncoderDecoder, EncoderDecoder, LSTMDecoder, ResNet34Encoder, ResNet50Encoder
-
+from src.models import EncoderDecoder, LSTMDecoder, ResNet50Encoder, ResNet34Encoder, VGGNetEncoder, MobileNetEncoder, DenseNetEncoder
 
 
 def main(args):
@@ -73,7 +71,7 @@ def main(args):
     lang = Lang(tokens, word2idx, idx2word)
     vocab_size = len(tokens)
 
-    # Split data up into train and evaluation set. We use the predefined train/eval splits of Flickr8k
+    # Split data up into train, evaluation and test set. We use the predefined train/eval splits of Flickr8k
     ds_train = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
                              root_path/'Flickr_8k.trainImages.txt', 'train', trnsf=trnsf['train'])
     ds_eval = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
@@ -100,7 +98,7 @@ def main(args):
         encoder_name = params['encoder']
     
         assert optimizer_name.lower() in ['adam', 'rmsprop', 'sgd']
-        assert encoder_name.lower() in ['resnet34', 'resnet50', 'vggnet', 'mobilenet', 'inception', 'densenet']  # TODO: add more encoders here
+        assert encoder_name.lower() in ['resnet34', 'resnet50', 'vggnet', 'mobilenet', 'densenet']
         
         # Set up paths for storing data
         save_folder = Path(save_folder)
@@ -126,13 +124,11 @@ def main(args):
         if encoder_name.lower() == 'resnet50':
             encoder = ResNet50Encoder(num_hidden)
         elif encoder_name.lower() == 'vggnet':
-            encoder = get_encoder_VGGnet(num_hidden)
+            encoder = VGGNetEncoder(num_hidden)
         elif encoder_name.lower() == 'mobilenet':
-            encoder = get_encoder_MobileNet(num_hidden)
-        elif encoder_name.lower() == 'inception':
-            encoder = get_encoder_Inception(num_hidden)
+            encoder = MobileNetEncoder(num_hidden)
         elif encoder_name.lower() == 'densenet':
-            encoder = get_encoder_DenseNet(num_hidden)
+            encoder = DenseNetEncoder(num_hidden)
 
         decoder = LSTMDecoder(num_hidden, embedding_dim, vocab_size, encoder.annotation_dim,
                               lang.word2idx['<START>'], device, num_layers=num_layers)
