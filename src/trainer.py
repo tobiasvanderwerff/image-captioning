@@ -124,10 +124,11 @@ class Trainer:
                 eval_score = scores['BLEU-2']  # TODO: this should be application independent, change this
                 epoch_score = np.mean(eval_score)
                 if epoch_score > self.best_score:
-                    logger.info(f"New best score: {epoch_score:1f}. Saving checkpoint.")
+                    logger.info(f"New best score: {epoch_score:1f}")
                     self.best_score = epoch_score
                     self.epochs_no_change = 0
                     if self.config.checkpoint_path is not None:  # save the new best model
+                        logger.info("Saving checkpoint.")
                         self.save_checkpoint(epoch_score, epoch=self.epoch)
                 else:
                     self.epochs_no_change += 1

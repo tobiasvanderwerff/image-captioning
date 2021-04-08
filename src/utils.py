@@ -115,8 +115,7 @@ def make_predictions(model, dataset, n_predictions=2):
     indices = list(range(n_predictions))
     imgs = [dataset[i][0] for i in indices]
     imgs = torch.stack(imgs, 0).to(model.device)
-    logits, *_ = model(imgs, 'test')
-    _, sampled_ids = logits.max(-1)
+    logits, _, _, sampled_ids = model(imgs, 'test')
                     
     # get image statistics from dataset (mean and standard deviation from normalization transform)
     if isinstance(dataset, torch.utils.data.dataset.Subset):

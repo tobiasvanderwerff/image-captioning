@@ -24,25 +24,26 @@ class MLP(nn.Module):
     def __init__(self, num_hidden, num_out):
         super().__init__()
         self.num_hidden = num_hidden
-        self.lin1 = nn.Linear(num_hidden, num_hidden)
-        self.bn1 = nn.BatchNorm1d(num_hidden)
-        self.relu1 = nn.ReLU(inplace=True)
-        self.lin2 = nn.Linear(num_hidden, num_hidden)
-        self.bn2 = nn.BatchNorm1d(num_hidden)
-        self.relu2 = nn.ReLU(inplace=True)
-        self.lin3 = nn.Linear(num_hidden, num_out)
-        self.relu3 = nn.ReLU(inplace=True)
+        self.lin1 = nn.Linear(num_hidden, 1)
+#         self.lin1 = nn.Linear(num_hidden, num_hidden)
+#         self.bn1 = nn.BatchNorm1d(num_hidden)
+#         self.relu1 = nn.ReLU(inplace=True)
+#         self.lin2 = nn.Linear(num_hidden, num_hidden)
+#         self.bn2 = nn.BatchNorm1d(num_hidden)
+#         self.relu2 = nn.ReLU(inplace=True)
+#         self.lin3 = nn.Linear(num_hidden, num_out)
+#         self.relu3 = nn.ReLU(inplace=True)
 
        
     def forward(self, x):
         x = self.lin1(x)
-        x = self.relu1(x)
-        x = self.bn1(x.transpose(1, -1))
-        x = self.lin2(x.transpose(1, -1))
-        x = self.relu2(x)
-        x = self.bn2(x.transpose(1, -1))
-        x = self.lin3(x.transpose(1, -1))
-        x = self.relu3(x)
+#         x = self.relu1(x)
+#         x = self.bn1(x.transpose(1, -1))
+#         x = self.lin2(x.transpose(1, -1))
+#         x = self.relu2(x)
+#         x = self.bn2(x.transpose(1, -1))
+#         x = self.lin3(x.transpose(1, -1))
+#         x = self.relu3(x)
         
         return x
 
@@ -54,7 +55,9 @@ class EncoderDecoder(nn.Module):
         self.device = device
         self.max_seq_len = max_seq_len
 
-        logger.info(f"Number of trainable parameters: {count_parameters(self)}")  # TODO: this is not right for the encoder
+        logger.info(f"Number of trainable parameters: {count_parameters(self)}")
+        logger.info(f"Number of trainable parameters in decoder: {count_parameters(self.decoder)}") 
+        
         
     def forward(self, imgs, split, captions=None, seq_lengths=None, metrics_callback_fn=None):
         if type(split) == list or type(split) == tuple:
@@ -70,7 +73,7 @@ class EncoderDecoder(nn.Module):
 
         if captions is not None: 
             targets = captions[:, 1:]  # the model skips the <START> token when making predictions
-            
+    
         if split == 'train':
             # all_logits = self.decoder(captions, feature_map, seq_lengths.cpu(), h0, c0)
             all_logits, sampled_ids = self.decoder(feature_map, h0, c0,
@@ -83,8 +86,9 @@ class EncoderDecoder(nn.Module):
                 scores = {}
                 for n in range(1, 5):
                     # calculate BLEU scores
-                    bleu_score = metrics_callback_fn(sampled_ids, targets, max_n=n)
+                    bleu_score = metrics_callback_fn(sampled_ids, captions, max_n=n)
                     scores.update({f'BLEU-{n}': bleu_score})
+        
         return all_logits, loss, scores, sampled_ids
     
     def sample(self, imgs):
@@ -120,7 +124,7 @@ class LSTMDecoder(nn.Module):
         self.fc_clsf = nn.Linear(embedding_dim, vocab_size)
         
         self.mlp_attn = MLP(self.num_hidden + self.annotation_dim, 1)
-        self.drop = nn.Dropout(p=0.3)
+        self.drop = nn.Dropout(p=0.1)
     
     def forward(self, feature_map, h0, c0, max_seq_len, captions=None, use_teacher_forcing=False):
         assert ((captions is None and not use_teacher_forcing) or 
@@ -140,6 +144,7 @@ class LSTMDecoder(nn.Module):
             word_emb = self.emb(lstm_in)
             hiddens, hc = self.lstm(word_emb.unsqueeze(1), hc)  # hiddens: (batch_size, 1, num_hidden)
             hiddens = self.drop(hiddens)
+
             # Attention 
             attn_in = torch.cat([feature_map, hiddens.repeat(1, n_annotations, 1)], 2)
             attn_out = self.mlp_attn(attn_in).squeeze(-1)  # (batch_size, n_annotations)
@@ -154,6 +159,11 @@ class LSTMDecoder(nn.Module):
             all_logits.append(logits)
         sampled_ids = torch.stack(sampled_ids, 1)
         all_logits = torch.stack(all_logits, 1)
+        
+        # Before returning the sampled tokens, add the <START> token to each sampled caption.
+        # TODO: Should this be in the EncoderDecoder?
+        start_tokens = torch.full([batch_size], self.start_token_idx).to(self.device)
+        sampled_ids = torch.cat([start_tokens.unsqueeze(1), sampled_ids], 1)
 
         return all_logits, sampled_ids
 
@@ -181,3 +191,32 @@ class ResNetEncoder(nn.Module):
         h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, 512)
         c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, 512)
         return feature_map, h0, c0 
+    
+    
+class ResNetEncoder2(nn.Module):
+    """ Pretrained resnet34 image encoder """
+    
+    def __init__(self, num_hidden):
+        super().__init__()
+        resnet = models.resnet34(pretrained=True) 
+        modules = list(resnet.children())
+        self.annotation_dim = modules[-1].in_features
+        
+        # TODO: perhaps change fc_init_h and fc_init_c to multi-layer MLPs
+        self.resnet = nn.Sequential(*modules[:-2])
+        self.fc_init_h = nn.Linear(self.annotation_dim, num_hidden, bias=False)
+        self.fc_init_c = nn.Linear(self.annotation_dim, num_hidden, bias=False)
+        self.bn1 = nn.BatchNorm1d(num_hidden)
+        self.bn2 = nn.BatchNorm1d(num_hidden)
+        
+        for p in self.resnet.parameters():
+            p.requires_grad = False
+    
+    def forward(self, imgs):
+        with torch.no_grad():  # do not keep track of resnet gradients, because we want to freeze those weights
+            feature_map = self.resnet(imgs).flatten(2, -1).transpose(1, 2)  # feature_map: (batch, 16, 2048)
+        mlp_input = feature_map.mean(1)
+        h0 = self.bn1(self.fc_init_h(mlp_input))  # h0: (batch, 512)
+        c0 = self.bn2(self.fc_init_c(mlp_input))  # c0: (batch, 512)
+        return feature_map, h0, c0 
+
