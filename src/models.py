@@ -247,14 +247,3 @@ class DenseNetEncoder(Encoder):
         annotation_dim = modules[-1].num_features
         feature_extractor = nn.Sequential(*modules[:-1])  # intermediate feature map: (-1, 2208, 7, 7)
         super().__init__(feature_extractor, annotation_dim, num_hidden) 
-            
-    
-class InceptionEncoder(Encoder):
-    """ Encoder with pretrained InceptionV3 as feature extractor."""
-    
-    def __init__(self, num_hidden):
-        inception = models.inception_v3(pretrained=True)
-        modules = list(inception.children())
-        annotation_dim =  modules[:-7][-1].branch_pool.bn.num_features
-        feature_extractor = nn.Sequential(*modules[:-7])  # intermediate feature map: (-1, 192, 12, 12)
-        super().__init__(feature_extractor, annotation_dim, num_hidden) 
