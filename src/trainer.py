@@ -130,7 +130,7 @@ class Trainer:
             if loss is not None:
                 epoch_loss = np.mean(losses)
                 info_str += (f"epoch {ep} - {split}_loss: {epoch_loss:.4f}")
-            if scores != {}:
+            if scores != {} and split != 'test':
                 for metric, values in scores.items():
                     logger.info(f"{metric}: {np.mean(values):.1f}")
                 eval_score = scores['BLEU-2']  # TODO: this should be application independent, change this
