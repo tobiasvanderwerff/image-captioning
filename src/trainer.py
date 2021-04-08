@@ -144,8 +144,8 @@ class Trainer:
                         if self.config.checkpoint_path is not None:  # save the new best model
                             logger.info("Saving checkpoint.")
                             self.save_checkpoint(epoch_score, epoch=self.epoch)
-                else:
-                    self.epochs_no_change += 1
+                    else:
+                        self.epochs_no_change += 1
             if info_str != "":
                 logger.info(info_str)
 
