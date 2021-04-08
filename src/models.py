@@ -21,20 +21,29 @@ logger = logging.getLogger(__name__)
 
 
 class MLP(nn.Module):
-    def __init__(self, num_hidden):
+    def __init__(self, num_hidden, num_out):
         super().__init__()
         self.num_hidden = num_hidden
-        
         self.lin1 = nn.Linear(num_hidden, num_hidden)
+        self.bn1 = nn.BatchNorm1d(num_hidden)
         self.relu1 = nn.ReLU(inplace=True)
         self.lin2 = nn.Linear(num_hidden, num_hidden)
+        self.bn2 = nn.BatchNorm1d(num_hidden)
         self.relu2 = nn.ReLU(inplace=True)
+        self.lin3 = nn.Linear(num_hidden, num_out)
+        self.relu3 = nn.ReLU(inplace=True)
+
        
     def forward(self, x):
         x = self.lin1(x)
         x = self.relu1(x)
-        x = self.lin2(x)
+        x = self.bn1(x.transpose(1, -1))
+        x = self.lin2(x.transpose(1, -1))
         x = self.relu2(x)
+        x = self.bn2(x.transpose(1, -1))
+        x = self.lin3(x.transpose(1, -1))
+        x = self.relu3(x)
+        
         return x
 
 class EncoderDecoder(nn.Module):
@@ -105,11 +114,13 @@ class LSTMDecoder(nn.Module):
         
         self.emb = nn.Embedding(vocab_size, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, num_hidden, num_layers, batch_first=True, bidirectional=bidirectional)
-        self.attn = nn.Linear(num_hidden + annotation_dim, 1)  # TODO: make this an MLP?
+        #self.attn = nn.Linear(num_hidden + self.annotation_dim, 1)  # TODO: make this an MLP?
         self.fc_h = nn.Linear(num_hidden, embedding_dim)
         self.fc_ctx = nn.Linear(annotation_dim, embedding_dim)
         self.fc_clsf = nn.Linear(embedding_dim, vocab_size)
-        # self.drop = nn.Dropout(p=0.1)
+        
+        self.mlp_attn = MLP(self.num_hidden + self.annotation_dim, 1)
+        self.drop = nn.Dropout(p=0.3)
     
     def forward(self, feature_map, h0, c0, max_seq_len, captions=None, use_teacher_forcing=False):
         assert ((captions is None and not use_teacher_forcing) or 
@@ -128,13 +139,14 @@ class LSTMDecoder(nn.Module):
                     lstm_in = sample
             word_emb = self.emb(lstm_in)
             hiddens, hc = self.lstm(word_emb.unsqueeze(1), hc)  # hiddens: (batch_size, 1, num_hidden)
-
+            hiddens = self.drop(hiddens)
             # Attention 
             attn_in = torch.cat([feature_map, hiddens.repeat(1, n_annotations, 1)], 2)
-            attn_out = self.attn(attn_in).squeeze(-1)  # (batch_size, n_annotations)
+            attn_out = self.mlp_attn(attn_in).squeeze(-1)  # (batch_size, n_annotations)
             attn_weights = F.softmax(attn_out, dim=-1)
          
             ctx = torch.sum(attn_weights.unsqueeze(-1) * feature_map, dim=1, keepdim=False)
+            ctx = self.drop(ctx)
             logits = self.fc_clsf(word_emb + self.fc_h(hiddens.squeeze(1)) + self.fc_ctx(ctx)) 
 
             _, sample = logits.max(-1)
