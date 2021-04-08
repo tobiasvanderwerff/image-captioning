@@ -133,7 +133,7 @@ class Trainer:
             if scores != {}:
                 for metric, values in scores.items():
                     logger.info(f"{metric}: {np.mean(values):.1f}")
-                if split == 'eval'
+                if split == 'eval':
                     eval_score = scores['BLEU-2']  # TODO: this should be application independent, change this
                     epoch_score = np.mean(eval_score)
                     if epoch_score > self.best_score:
