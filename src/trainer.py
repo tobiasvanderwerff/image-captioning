@@ -157,8 +157,7 @@ class Trainer:
                     run_epoch('eval')
                     if self.evaluation_callback_fn is not None:  # this can be used to show intermediate predictions of the model
                         self.evaluation_callback_fn(model, self.eval_ds)
-#             if self.epochs_no_change >= self.max_epochs_no_change:  # stop early
-            if self.epochs_no_change >= 1:  # stop early
+            if self.epochs_no_change >= self.max_epochs_no_change:  # stop early
                 logger.info(f"Stopped early at epoch {ep}. Best score: {self.best_score}")
                 if self.test_ds is not None:
                     logger.info("Calculating results on test set...")
