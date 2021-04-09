@@ -1,6 +1,6 @@
 # image-captioning
 This branch contains an alternative implementation of the image captioning
-system, implementing the system layed out the 2015 paper 'Show and Tell' by
+system, implementing the system layed out in the 2015 paper 'Show and Tell' by
 Vinyals et al. [2].
 
 ## Installation
