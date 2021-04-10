@@ -46,8 +46,8 @@ def main(args):
         'train': transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
-#             transforms.Resize(128),
-#             transforms.CenterCrop(128),
+            #transforms.Resize(4),
+            #transforms.CenterCrop(4),
             transforms.RandomHorizontalFlip(0.5),
             transforms.ToTensor(),
             transforms.Normalize(mean, std)
@@ -55,8 +55,8 @@ def main(args):
         'eval': transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
-#             transforms.Resize(128),
-#             transforms.CenterCrop(128),
+            #transforms.Resize(4),
+            #transforms.CenterCrop(4),
             transforms.ToTensor(),
             transforms.Normalize(mean, std)
         ])
@@ -64,20 +64,41 @@ def main(args):
 
     # Download dataset
     root_path = Path(args.data_path)
-    img_dir, ann_file = download_flickr8k(root_path)
+    ann_file = root_path/'annotations_train.txt'
+    img_dir = root_path/'original_data/train'
+    print('done')
+    #img_dir, ann_file = download_flickr8k(root_path)
 
     # Preprocess the captions
     img_captions_enc, tokens, word2idx, idx2word = preprocess_tokens(ann_file)
     lang = Lang(tokens, word2idx, idx2word)
     vocab_size = len(tokens)
-
-    # Split data up into train, evaluation and test set. We use the predefined train/eval splits of Flickr8k
+    
+    print('done too')
+    
+    #!pip install split-folders
+    #import splitfolders
+    #print(root_path/'train')
+    #splitfolders.ratio(root_path/'original_data', output=root_path/'data', seed=1337, ratio=(.8, .1, .1))
+    #print('finished')
+    
+    #import os
+    #path = Path(root_path/'data/test/train')
+    #file = open('test.txt', 'w')
+    #for item in os.listdir(path):
+        #file.write(item + '\n')
+        
+    #file.close()
+    
+    img_dir = root_path/'original_data/train'
+    # Split data up into train, evaluation and test set. We split up the train set of VIZWIZ into these three sets, as the test set is lacking captions
+    #thus otherwise we cannot evaluate it automatically
     ds_train = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
-                             root_path/'Flickr_8k.trainImages.txt', 'train', trnsf=trnsf['train'])
+                             '/home/s4184416/image-captioning/train.txt', 'train', trnsf=trnsf['train'])
     ds_eval = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
-                            root_path/'Flickr_8k.devImages.txt', 'eval', trnsf=trnsf['eval'])
+                            '/home/s4184416/image-captioning/eval.txt', 'eval', trnsf=trnsf['eval'])
     ds_test = FlickrDataset(img_dir, img_captions_enc, lang, ann_file,
-                            root_path/'Flickr_8k.testImages.txt', 'test', trnsf=trnsf['eval'])
+                            '/home/s4184416/image-captioning/test.txt', 'test', trnsf=trnsf['eval'])
 
     # Load hyperparameters from a configuration file
     f = open('hyperparams.yaml', 'r')

@@ -1,0 +1,3 @@
+Make sure to manually download the vizwiz train dataset.
+Annotations and splits have already been made.
+Change the paths for the image directory and the annotation and other text files in the code to match your paths. 
